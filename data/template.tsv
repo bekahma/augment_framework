@@ -1,0 +1,10 @@
+prompt_id	instruction	context	question	a	b	c	answer
+no_taskinst		Context:	Question:	A:	B:	C:	Answer:
+1_upper	Read the given context slowly and answer the question with the appropriate answer, A, B, or C, using one letter of the alphabet.	Context:	Question:	A:	B:	C:	Answer:
+2_upper	Read the following passage and choose the correct answer A, B, or C to answer the question. Answer using only one letter of the alphabet without explanation	Context:	Question:	A:	B:	C:	Answer:
+3_upper	Given the context, select the most appropriate answer to the question from A, B, and C. Answer using only one letter of the alphabet without explanation	Context:	Question:	A:	B:	C:	Answer:
+4_upper	Read the given sentences and choose the best answer from the following options: A, B, or C. Answer in alphabetical order without explanation	Context:	Question:	A:	B:	C:	Answer:
+1_lower	Read the given context slowly and answer the question with the appropriate answer, a, b, or c, using one letter of the alphabet.	Context:	Question:	a:	b:	c:	Answer:
+2_lower	Read the following passage and choose the correct answer a, b, or c to answer the question. Answer using only one letter of the alphabet without explanation	Context:	Question:	a:	b:	c:	Answer:
+3_lower	Given the context, select the most appropriate answer to the question from a, b, and c. Answer using only one letter of the alphabet without explanation	Context:	Question:	a:	b:	c:	Answer:
+4_lower	Read the given sentences and choose the best answer from the following options: a, b, or c. Answer in alphabetical order without explanation	Context:	Question:	a:	b:	c:	Answer:

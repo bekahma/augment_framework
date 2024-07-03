@@ -1,0 +1,9 @@
+huggingface-hub==0.20.2
+numpy==1.26.1
+pandas==2.1.1
+protobuf==4.25.2
+sentencepiece==0.1.99
+tokenizers==0.14.1
+torch==1.13.1+cu116
+tqdm==4.66.1
+transformers==4.34.0

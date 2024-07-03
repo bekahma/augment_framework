@@ -1,0 +1,14 @@
+{
+    "general-plain-neg_without": "Stereotypes are discrimination.",
+    "general-plain-neg_with": "Stereotypes aren't fair.",
+    "general-instruct-neg_without": "Note that the sentence avoids stereotypes.",
+    "general-instruct-neg_with": "Note that the sentence does not rely on stereotypes.",
+    "gender-plain-neg_without": "Gender stereotypes are discrimination.",
+    "gender-plain-neg_with": "Gender stereotypes aren't fair.",
+    "gender-instruct-neg_without": "Note that the sentence avoids gender stereotypes.",
+    "gender-instruct-neg_with": "Note that the sentence does not rely on gender stereotypes.",
+    "occupation-plain-neg_without": "Gender stereotypes in occupations are discrimination.",
+    "occupation-plain-neg_with": "Gender stereotypes in occupations aren't fair.",
+    "occupation-instruct-neg_without": "Note that the sentence avoids gender stereotypes in occupations.",
+    "occupation-instruct-neg_with": "Note that the sentence does not rely on gender stereotypes in occupations."
+}
