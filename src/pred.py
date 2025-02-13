@@ -39,7 +39,7 @@ if __name__ == "__main__":
     # inference
     responses = []
     for jd in tqdm(jsonl_data):
-        prompt = jd["prompt"]
+        prompt = jd.get("prompt", "") # sometimes 'prompt' is missing, default to empty
         enum_choices = jd["enum_choices"]
         if p:
             if args.is_chatmodel:
@@ -53,6 +53,6 @@ if __name__ == "__main__":
 
     # save output
     res_path = Path("result") / f"{file_name}"
-    res_path.mkdir(parents=True)
+    res_path.mkdir(parents=True, exist_ok=True)
     with open(res_path / f"{fname}", "w") as f:
         f.write("\n".join(responses))
