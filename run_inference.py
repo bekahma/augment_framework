@@ -3,14 +3,12 @@ import subprocess
 import glob
 
 # Configuration
-MODEL_NAME = "facebook/opt-1.3b" # change as required
-# DEBIAS_PROMPT = "debias_prompts"  # Remove if not needed
-DATA_DIRS = ["data", "data/jsonl"]  # Search both directories
+MODEL_NAME = "facebook/opt-1.3b"  # Replace with the actual model
+# DEBIAS_PROMPT = "debias_prompts"
+DATA_DIR = "data/jsonl"
 
-# Collect all .jsonl files
-jsonl_files = []
-for directory in DATA_DIRS:
-    jsonl_files.extend(glob.glob(os.path.join(directory, "*.jsonl")))
+# Get all .jsonl files
+jsonl_files = glob.glob(os.path.join(DATA_DIR, "*.jsonl"))
 
 # Run inference on each file
 for file in jsonl_files:
