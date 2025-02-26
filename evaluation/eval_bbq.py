@@ -170,7 +170,7 @@ def eval_bbq(file, jsonl_data):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--result_dir", required=True)
+    parser.add_argument("--result_dir", default="./result")
     args = parser.parse_args()
     file_dir = Path(args.result_dir)
     files = file_dir.glob("**/*.txt")
@@ -186,7 +186,7 @@ if __name__ == "__main__":
 
         output_path = file_dir / "summary"
         output_path.mkdir(exist_ok=True)
-        pd.concat(dfs).to_csv(file_dir / "summary" / "sum.csv")
+        pd.concat(dfs).to_csv(file_dir / "summary" / "sum.csv", index=False)
 
     for p in file_dir.glob("**/*.txt.log*"):
         if p.is_file():
