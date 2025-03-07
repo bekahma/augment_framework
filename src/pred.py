@@ -16,6 +16,7 @@ if __name__ == "__main__":
     parser.add_argument("--file_name", type=str, required=True)
     parser.add_argument("--debias_prompt", type=str)
     parser.add_argument("--is_chatmodel", action="store_true")
+    parser.add_argument("--output_dir", type=str, default="result") # added this to specify output 
 
     args = parser.parse_args()
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -52,7 +53,7 @@ if __name__ == "__main__":
         responses.append(pred)
 
     # save output
-    res_path = Path("result") / f"{file_name}"
+    res_path = Path(args.output_dir) / f"{file_name}"
     res_path.mkdir(parents=True, exist_ok=True)
     with open(res_path / f"{fname}", "w") as f:
         f.write("\n".join(responses))
