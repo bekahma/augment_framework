@@ -1,0 +1,2 @@
+model,ambig-acc,disambig-acc,consist,diff-bias_ambig,diff-bias_disambig
+tiiuae-falcon-7b,8.928571428571427,3.2738095238095184,23.611111111111114,2.4801587301587302,2.7777777777777777
