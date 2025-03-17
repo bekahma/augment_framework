@@ -2,11 +2,10 @@
 #SBATCH --job-name=model_inference      # Job name
 #SBATCH --output=logs/inference_%j.out  # Output log file
 #SBATCH --error=logs/inference_%j.err   # Error log file
-#SBATCH --time=02:00:00                 # Time limit (adjust as needed)
+#SBATCH --time=06:00:00                 # Time limit (adjust as needed)
 #SBATCH --gres=gpu:1                     # Request 1 GPU
-#SBATCH --mem=16G                        # Memory per node
+#SBATCH --mem=48G                        # Memory per node
 #SBATCH --cpus-per-task=4                # Number of CPU cores
-#SBATCH --partition=a40                   # Change based on your cluster
 
 # Check if the model name and results directory are provided
 if [ -z "$1" ] || [ -z "$2" ]; then
@@ -20,10 +19,14 @@ DATA_DIR="data/jsonl"
 
 # Set Python path
 # export PYTHONPATH="$(pwd)/src:$PYTHONPATH"
-export PYTHONPATH="$HOME/llm_socialbias_prompts/src:$PYTHONPATH"
+#export PYTHONPATH="$HOME/llm_socialbias_prompts/src:$PYTHONPATH"
 
 # Load Hugging Face credentials automatically
-export HF_HOME="$HOME/.cache/huggingface"
+#export HF_HOME="$HOME/.cache/huggingface"
+
+module load python/3.10
+module load cuda/11.8
+source $HOME/multi/bin/activate
 
 echo "Running inference for model: $MODEL_NAME"
 echo "Results will be saved in: $OUTPUT_DIR"
@@ -31,7 +34,7 @@ echo "Results will be saved in: $OUTPUT_DIR"
 # Iterate over all JSONL files and run inference
 for file in "$DATA_DIR"/*.jsonl; do
     echo "Processing $file with $MODEL_NAME..."
-    python3 src/pred.py --model "$MODEL_NAME" --file "$file" --output_dir "$OUTPUT_DIR"
+    python3 src/pred.py --model "$MODEL_NAME" --file "$file" --output_dir "$OUTPUT_DIR" 
 done
 
 echo "Finished processing all JSONL files with model $MODEL_NAME."

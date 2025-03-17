@@ -19,3 +19,6 @@ class LLMs:
     def pred_MCP(self, context, answer_candidates, return_candidates):
         pred = [self.calculate_loglikelihood(context, ans) for ans in answer_candidates]
         return return_candidates[pred.index(max(pred))]
+    
+    def pred_likelihoods(self, context, answer_candidates, return_candidates):
+        return [self.calculate_loglikelihood(context, ans) for ans in answer_candidates]

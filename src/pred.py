@@ -1,3 +1,4 @@
+import os
 import json
 import argparse
 from tqdm import tqdm
@@ -17,12 +18,11 @@ if __name__ == "__main__":
     parser.add_argument("--debias_prompt", type=str)
     parser.add_argument("--is_chatmodel", action="store_true")
     parser.add_argument("--output_dir", type=str, default="result") # added this to specify output 
+    parser.add_argument("--probas", type=str, default="False") 
 
     args = parser.parse_args()
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model_id = args.model.replace("/", "-")
-
-    llm = LLMs(args.model, model_id, device)
 
     # load test data
     file = args.file_name
@@ -37,23 +37,35 @@ if __name__ == "__main__":
         fname += f"_{args.debias_prompt}"
     fname += ".txt"
 
-    # inference
-    responses = []
-    for jd in tqdm(jsonl_data):
-        prompt = jd.get("prompt", "") # sometimes 'prompt' is missing, default to empty
-        enum_choices = jd["enum_choices"]
-        if p:
-            if args.is_chatmodel:
-                context = make_prompt_for_chatmodel(prompt, "\n".join(p), model_id)
-            else:
-                context = p + "\n\n" + prompt
-        else:
-            context = prompt
-        pred = llm.pred_MCP(context, enum_choices, ["A", "B", "C"])
-        responses.append(pred)
-
-    # save output
     res_path = Path(args.output_dir) / f"{file_name}"
     res_path.mkdir(parents=True, exist_ok=True)
-    with open(res_path / f"{fname}", "w") as f:
-        f.write("\n".join(responses))
+
+    if os.path.isfile(res_path / f"{fname}"):
+        #Not recomputing if the results were already computed
+        print("File already exists, not computing again")
+    else:
+        llm = LLMs(args.model, model_id, device)
+        # inference
+        responses = []
+        for jd in tqdm(jsonl_data):
+            prompt = jd.get("prompt", "") # sometimes 'prompt' is missing, default to empty
+            enum_choices = jd["enum_choices"]
+            if p:
+                if args.is_chatmodel:
+                    context = make_prompt_for_chatmodel(prompt, "\n".join(p), model_id)
+                else:
+                    context = p + "\n\n" + prompt
+            else:
+                context = prompt
+            if args.probas=='False':
+                pred = llm.pred_MCP(context, enum_choices, ["A", "B", "C"])
+            else:
+                pred = llm.pred_likelihoods(context, enum_choices, ["A", "B", "C"])
+                pred=str(pred)
+            responses.append(pred)
+
+        # save output
+        res_path = Path(args.output_dir) / f"{file_name}"
+        res_path.mkdir(parents=True, exist_ok=True)
+        with open(res_path / f"{fname}", "w") as f:
+            f.write("\n".join(responses))

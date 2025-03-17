@@ -3,7 +3,7 @@ import subprocess
 import glob
 
 # Configuration
-MODEL_NAME = "facebook/opt-1.3b"  # Replace with the actual model
+MODEL_NAME = "/network/weights/llama.var/llama_2/Llama-2-13b-hf"  # Replace with the actual model
 # DEBIAS_PROMPT = "debias_prompts"
 DATA_DIR = "data/jsonl"
 
