@@ -1,0 +1,2 @@
+model,ambig-acc,disambig-acc,consist,diff-bias_ambig,diff-bias_disambig
+mosaicml-mpt-7b,5.853174603174601,3.8690476190476204,26.785714285714278,3.8690476190476186,6.746031746031746
