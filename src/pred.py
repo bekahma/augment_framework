@@ -17,12 +17,15 @@ if __name__ == "__main__":
     parser.add_argument("--file_name", type=str, required=True)
     parser.add_argument("--debias_prompt", type=str)
     parser.add_argument("--is_chatmodel", action="store_true")
-    parser.add_argument("--output_dir", type=str, default="result") # added this to specify output 
+    parser.add_argument("--output_dir", type=str) # added this to specify output 
     parser.add_argument("--probas", type=str, default="False") 
 
     args = parser.parse_args()
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model_id = args.model.replace("/", "-")
+
+    if args.output_dir is None:
+        args.output_dir = "./result/"+args.model
 
     # load test data
     file = args.file_name
