@@ -11,6 +11,15 @@ from utils import make_prompt_for_chatmodel
 with open("./data/debias_prompts.json", "r") as f:
     PROMPTS = json.load(f)
 
+def load_existing_results(filepath):
+    """Load already computed results from the existing file."""
+    if os.path.isfile(filepath):
+        with open(filepath, "r") as f:
+            responses = f.read().splitlines()
+        print(f"Resuming from {len(responses)} existing results.")
+        return responses
+    return []
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", type=str, required=True)
@@ -25,7 +34,10 @@ if __name__ == "__main__":
     model_id = args.model.replace("/", "-")
 
     if args.output_dir is None:
-        args.output_dir = "./result/"+args.model
+        if args.probas=='False':
+            args.output_dir = "./result/"+model_id
+        else:
+            args.output_dir = "./result_uncertainty/"+model_id
 
     # load test data
     file = args.file_name
@@ -40,17 +52,20 @@ if __name__ == "__main__":
         fname += f"_{args.debias_prompt}"
     fname += ".txt"
 
-    res_path = Path(args.output_dir) / f"{file_name}"
+    res_path = Path(args.output_dir) #/ f"{file_name}"
     res_path.mkdir(parents=True, exist_ok=True)
 
-    if os.path.isfile(res_path / f"{fname}"):
-        #Not recomputing if the results were already computed
-        print("File already exists, not computing again")
+    file_path=res_path / f"{fname}"
+    print(file_path)
+    existing_responses = load_existing_results(file_path)
+    start_index = len(existing_responses)
+
+    if start_index >= len(jsonl_data):
+        print("File already contains all results, skipping computation.")
     else:
         llm = LLMs(args.model, model_id, device)
         # inference
-        responses = []
-        for jd in tqdm(jsonl_data):
+        for jd in tqdm(jsonl_data[start_index:]):
             prompt = jd.get("prompt", "") # sometimes 'prompt' is missing, default to empty
             enum_choices = jd["enum_choices"]
             if p:
@@ -63,12 +78,10 @@ if __name__ == "__main__":
             if args.probas=='False':
                 pred = llm.pred_MCP(context, enum_choices, ["A", "B", "C"])
             else:
-                pred = llm.pred_likelihoods(context, enum_choices, ["A", "B", "C"])
+                pred = llm.pred_likelihoods(context, enum_choices)
                 pred=str(pred)
-            responses.append(pred)
+            existing_responses.append(pred)
 
         # save output
-        res_path = Path(args.output_dir) / f"{file_name}"
-        res_path.mkdir(parents=True, exist_ok=True)
-        with open(res_path / f"{fname}", "w") as f:
-            f.write("\n".join(responses))
+        with open(file_path, "w") as f:
+            f.write("\n".join(existing_responses))
