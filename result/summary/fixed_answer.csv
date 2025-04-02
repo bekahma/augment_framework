@@ -29,9 +29,15 @@ meta-llama-Llama-2-7b-hf,0.9592198179950598
 facebook-opt-1.3b,0.3044340711301803
 facebook-opt-1.3b,0.2698684804651279
 facebook-opt-1.3b,0.2698684804651279
+tiiuae-falcon-7b,0.17425991310347752
+tiiuae-falcon-7b,0.13575216358279746
+tiiuae-falcon-7b,0.13575216358279746
 -network-weights-llama.var-llama_2-Llama-2-13b-hf,0.7602957692299164
 -network-weights-llama.var-llama_2-Llama-2-13b-hf,0.8339378912224327
 -network-weights-llama.var-llama_2-Llama-2-13b-hf,0.8339378912224327
+tiiuae-falcon-7b-instruct,0.5546042619883986
+tiiuae-falcon-7b-instruct,0.7516576419600384
+tiiuae-falcon-7b-instruct,0.7516576419600384
 mosaicml-mpt-7b-instruct,0.9906790822307041
 mosaicml-mpt-7b-instruct,0.9630716375736116
 mosaicml-mpt-7b-instruct,0.9630716375736116

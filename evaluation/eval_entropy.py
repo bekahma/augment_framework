@@ -1,3 +1,6 @@
+"""This script is for preliminary analysis. 
+The goal is to compare the distribution of log-likelihoods with the distribution of answers to the different prompts."""
+
 import json
 import re
 import string
@@ -7,60 +10,84 @@ import argparse
 from pathlib import Path
 from scipy.stats import pearsonr
 
-PUNCS = set(list(string.punctuation))
-LABEL_MAP = {"A": "ans0", "B": "ans1", "C": "ans2"}
+def compute_entropy(probas_list):
+    assert all(np.all((0 <= probs) & (probs <= 1)) for probs in probas_list), "Probabilities must be in the range [0,1]"
+    return [-np.sum(probs * np.log(np.clip(probs, 1e-10, 1.0))) for probs in probas_list]
 
-def compute_entropy(log_likelihoods):
-    entropies = []
-    for log_probs in log_likelihoods:
-        probs = np.exp(log_probs - np.max(log_probs))  # Apply softmax (stable version)
-        probs /= np.sum(probs)
-        entropy = -np.sum(probs * np.log(probs))
-        entropies.append(entropy)
-    return entropies
+def softmax(logits):
+    exp_values = np.exp(logits - np.max(logits))  # Subtract max for numerical stability
+    return exp_values / np.sum(exp_values)
 
-def eval_entropy(file):
+def log_entropy(file):
+    """
+    Reads log-likelihood values from a file, computes entropy, and returns the results.
+
+    Parameters:
+    file (str): Path to the file containing log-likelihood values. 
+
+    Returns:
+    tuple: A tuple containing:
+        - entropies (array-like): The computed entropy values.
+        - log_likelihoods (list of numpy arrays): The parsed log-likelihood values.
+
+    """
     log_likelihoods = []
     with open(file, "r") as f:
         for line in f:
-            # Convert the string to a list of floats
-            log_likelihoods.append(np.array(eval(line.strip())))
+            log_probs=np.array(eval(line.strip())) # Convert the string to a list of floats
+            log_likelihoods.append(softmax(log_probs)) #Apply softmax to have probabilities
     entropies = compute_entropy(log_likelihoods)
+    return log_likelihoods, entropies
 
-    return entropies, log_likelihoods
-
-def compute_variance(files, log_likelihoods):
-    probs_list = [np.exp(log_probs - np.max(log_probs)) / np.sum(np.exp(log_probs - np.max(log_probs))) for log_probs in log_likelihoods]
-    response_variances = []
-    kl_divergences = []
-    responses = [path.read_text().strip().split("\n") for path in files]
-    if len(responses)==0:
+def ans_entropy(files):
+    """
+    Compute the probability distribution and entropy for each response across multiple files.
+    
+    Parameters:
+    files (list): List of file paths containing responses (assumed to be in 'A', 'B', or 'C').
+    
+    Returns:
+    tuple: A tuple containing:
+        - prob_dist_list: List of probability distributions for each response.
+        - entropies: List of entropy values for each response.
+    """
+    prob_dist_list = []
+    responses = [path.read_text().strip().split("\n") for path in files] # Read and process all files into a list of responses 
+    num_files=len(responses)
+    
+    if num_files==0: # if there are no files, return None
         return None, None
+    
     num_responses = len(responses[0])
-    assert all(len(r) == num_responses for r in responses), "Files have different response counts!"
+    assert all(len(r) == num_responses for r in responses), "Files have different response counts!" 
 
-    for i in range(num_responses):
-        response_set = [responses[f][i] for f in range(len(responses))]  # Collect corresponding responses
+    for i in range(num_responses): # loop through each line (question) to calculate probability distributions and entropy
+        response_set = [responses[f][i] for f in range(num_files)]  # Collect responses for the i-th question from all files
         
-        # Count occurrences of each letter
+        # Count occurrences of each possible response ('A', 'B', 'C')
         letter_counts = {letter: 0 for letter in ["A", "B", "C"]}
         for response in response_set:
             letter_counts[response] += 1
         
-        # Convert to probability distribution (normalized)
-        prob_dist = np.array([letter_counts.get(letter, 0) / len(responses) for letter in ["A", "B", "C"]])
-        epsilon = 1e-10
-        prob_dist = np.maximum(prob_dist, epsilon)
+        # Convert letter counts to a normalized probability distribution
+        prob_dist = np.array([letter_counts.get(letter, 0) / num_files for letter in ["A", "B", "C"]])
+        prob_dist_list.append(prob_dist)
+    
+    entropies=compute_entropy(prob_dist_list) # Compute entropy for each probability distribution
+    return prob_dist_list, entropies
 
-        # Compute entropy
-        entropy = -np.sum(prob_dist * np.log2(prob_dist))  # Log base 2 for bits
-        response_variances.append(entropy)
+def compare_distribution(prob_dist, log_likelihoods, epsilon=1e-10):
+    '''Compute kl divergence for each answer'''
+    prob_dist = np.array(prob_dist)
+    log_likelihoods = np.array(log_likelihoods)
+    
+    # Ensure no zeros in probability distributions
+    prob_dist = np.clip(prob_dist, epsilon, 1)  
+    log_likelihoods = np.clip(log_likelihoods, epsilon, 1)
 
-        # Compute kl-divergence
-        kl_div = np.sum(prob_dist * np.log(prob_dist / probs_list[i]))
-        kl_divergences.append(kl_div)
-
-    return response_variances, kl_divergences
+    kl_values = np.sum(prob_dist * np.log(prob_dist / log_likelihoods), axis=1)
+    
+    return np.nan_to_num(kl_values)
 
 def clean_model_name(model_name):
     match = re.search(r"Llama-\d+[a-zA-Z0-9-]*", model_name)
@@ -86,45 +113,53 @@ def print_latex_table(correlations, kl):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--result_dir", default="./result_uncertainty")
+    parser.add_argument("--result_dir", default="./result")
     args = parser.parse_args()
 
-    with open("eval_config.json", "r") as f:
-        eval_config = json.load(f)
-    eval_base_file = eval_config["eval_base_file"]
-
-    with open(eval_base_file, "r") as f:
-        jsonl_data = [json.loads(line) for line in f.readlines()]
-
-    correct_labels = [entry["label"] for entry in jsonl_data]
-
+    #Getting all folders that exist in the result directory with a uncertainty subfolder
     file_dir = Path(args.result_dir)
-    folders = [f.name for f in file_dir.iterdir() if f.is_dir() and any(file.suffix == '.txt' for file in f.glob("*.txt"))]
-    dfs = []
+    folders = [
+            f.name for f in file_dir.iterdir() 
+            if f.is_dir() and 
+            any(subfolder.name == "uncertainty" and subfolder.is_dir() for subfolder in f.iterdir()) and
+            any(file.suffix == ".txt" for file in f.glob("*.txt"))
+        ]
     
+    dfs = []
     for folder in folders:
-        folder_path=Path(args.result_dir)/Path(folder)
+        folder_path=Path(args.result_dir)/folder/"uncertainty"
+
+        #Retrieving log-likelihoods and computing entropy
         files_uncertainty = folder_path.glob("*.txt")
         for file in files_uncertainty:
-            entropies, log_likelihoods=eval_entropy(file)
+            log_likelihoods, log_entropies=log_entropy(file)
+
+        #Retrieving the corresponding results per prompt strategy for the current model
         result_folder="./result/"+folder
         files = list(Path(result_folder).glob("*.txt"))
-        response_variances, kl_divergences=compute_variance(files, log_likelihoods)
-        if response_variances is not None and kl_divergences is not None:
+
+        #Computing answer distribution and corresponding entropy
+        prob_list, ans_entropies = ans_entropy(files)
+
+        if prob_list is not None:
+            #Comparing the distributions
+            kl_divergences=compare_distribution(prob_list, log_likelihoods)
             df = pd.DataFrame({
                 'model': str(folder),
-                'Variance': response_variances,
-                'Entropy': entropies,
+                'Answer_Entropy': ans_entropies,
+                'Log_Entropy': log_entropies,
                 'KL': kl_divergences
                 })
             dfs.append(df)
 
+    # Saving results
     output_path = file_dir / "summary"
     output_path.mkdir(exist_ok=True)
     all_result=pd.concat(dfs)
+    all_result.to_csv(file_dir / "summary" / "entropies.csv", index=False)
 
-    # Output the correlation
-    correlations = all_result.groupby("model").apply(lambda g: pearsonr(g["Variance"], g["Entropy"])[0])
+    # Computing the correlation and avg KL
+    correlations = all_result.groupby("model").apply(lambda g: pearsonr(g["Answer_Entropy"], g["Log_Entropy"])[0])
     kl = all_result.groupby("model")["KL"].mean()
 
     print(f"Pearson correlation between loglikelihood entropy and prompts entropy:")
@@ -133,8 +168,9 @@ if __name__ == "__main__":
     print(f"\nAvg KL divergence per model")
     print(kl)
 
+    #Printing for latex
     print_latex_table(correlations, kl)
         
-    all_result.to_csv(file_dir / "summary" / "entropies.csv", index=False)
+    
 
 

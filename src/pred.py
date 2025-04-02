@@ -37,7 +37,7 @@ if __name__ == "__main__":
         if args.probas=='False':
             args.output_dir = "./result/"+model_id
         else:
-            args.output_dir = "./result_uncertainty/"+model_id
+            args.output_dir = "./result/"+model_id+"/uncertainty"
 
     # load test data
     file = args.file_name
