@@ -3,3 +3,4 @@ src/__pycache__
 logs/
 *.sh
 run_inference.py
+.env

@@ -5,6 +5,8 @@ from openai import OpenAI
 from tqdm import tqdm
 import random
 
+from dotenv import load_dotenv # for loading API key
+
 def get_openai_client(model_name, key):
     """
     Returns an OpenAI client and model name based on the specified backend.
@@ -120,7 +122,7 @@ def paraphrase(para_modif, instructions_df, gender_bbq_templates, api_key, use_m
 
                 # Append to the DataFrame
                 paraphrase_df.loc[len(paraphrase_df)] = {
-                    "modification":"prepositions",
+                    "modification":para_modif,
                     "Q_id":row['Q_id'],
                     "disambiguated":disambiguated,
                     "original": original_context,
@@ -145,13 +147,19 @@ if __name__ == "__main__":
     DATA_FOLDER='./data/'
     INSTRUCTION_FILE = DATA_FOLDER+"paraphrases/paraphrase_instructions.tsv"
     TEMPLATE_FILE = DATA_FOLDER+"BBQ_templates/Gender_identity.csv"
-    OUTPUT_FILE = DATA_FOLDER+"paraphrases/gender_paraphrases.xlsx"
+    # TODO: change this to reflect what type of modification it is
+    OUTPUT_FILE = DATA_FOLDER+"paraphrases/gender_paraphrases2.xlsx"
 
-    modification='prepositions'
+    modification='synonym_substitution'
 
     #Loading API key
+    load_dotenv()  # load environment variables from .env
+    api_key = os.getenv("OPENAI_API_KEY")
+
+    ''' TODO: standardize the api key loading process
     with open(os.path.expanduser(f"~/{use_model}_api.key"), "r") as f:
         api_key=f.read().strip()
+    '''
 
     # Loading the dataframes
     instructions_df=pd.read_csv(INSTRUCTION_FILE, sep='\t')
