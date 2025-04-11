@@ -1,3 +1,5 @@
+"""This script is to generate the whole BBQ dataset, once contexts have been rephrased."""
+
 import pandas as pd
 import io
 import json
