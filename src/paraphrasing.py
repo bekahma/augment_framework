@@ -45,6 +45,8 @@ def choose_vocabulary(gender_bbq_templates):
     
     return original_df
 
+from dotenv import load_dotenv # for loading API key
+
 def get_openai_client(model_name, key):
     """
     Returns an OpenAI client and model name based on the specified backend.
@@ -121,7 +123,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     use_model = args.model
-    modification='prepositions'
+    modification='synonym_substitution'
 
     #Paths
     DATA_FOLDER='./data/paraphrases/'
@@ -130,8 +132,13 @@ if __name__ == "__main__":
     OUTPUT_FILE = DATA_FOLDER+f"Gender_identity_{modification}_{use_model}.csv"
 
     #Loading API key
+    load_dotenv()  # load environment variables from .env
+    api_key = os.getenv("OPENAI_API_KEY")
+
+    ''' TODO: standardize the api key loading process
     with open(os.path.expanduser(f"~/{use_model}_api.key"), "r") as f:
         api_key=f.read().strip()
+    '''
 
     # Loading the dataframes
     instructions_df=pd.read_csv(INSTRUCTION_FILE, sep='\t')
