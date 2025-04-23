@@ -4,3 +4,4 @@ logs/
 *.sh
 run_inference.py
 .env
+.ipynb_checkpoints/
