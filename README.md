@@ -33,7 +33,10 @@ You can run the inference with each LLM.
 - debias_prompt: debias_prompt key. See the above description. When evaluating without debias-prompts, drop this arg. 
 
 ## Evaluation
-You can calculate task performance and social bias of LLMs.
+Before running the evaluation, you need to realign the answers because some paraphrased questions may have been filtered out due to quality issues. To do this, run the script
+```python3 src/post_process.py --result_dir <result_folder>```
+
+You can then calculate task performance and social bias of LLMs.
 ```python3 evaluation/eval_bbq.py --result_dir <result_folder>```
 
 To compare answer distribution, run
