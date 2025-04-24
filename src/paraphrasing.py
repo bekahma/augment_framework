@@ -72,8 +72,6 @@ def extract_paraphrase_line(text):
             paraphrase = line.split("PARAPHRASE: ", 1)[1].strip()
             if paraphrase:  # avoid empty strings
                 paraphrases.append(paraphrase)
-    if not paraphrases:
-        raise ValueError("Couldn't parse any paraphrase lines.")
     return paraphrases
 
 def paraphrase(para_modif, instructions_df, gender_bbq_templates, api_key, use_model="deepseek"):
@@ -93,6 +91,10 @@ def paraphrase(para_modif, instructions_df, gender_bbq_templates, api_key, use_m
 
     # Output DataFrame
     paraphrase_df=gender_bbq_templates.copy()
+
+    # Initialize empty columns for storing the paraphrases
+    paraphrase_df["Ambiguous_Paraphrases"] = None
+    paraphrase_df["Disambiguating_Paraphrases"] = None
 
     # Load model client and model name
     client, model_name = get_openai_client(use_model, api_key)
@@ -135,15 +137,23 @@ if __name__ == "__main__":
     parser.add_argument('--modification', type=str, default='prepositions',
                         help="Type of modification to apply (e.g., 'prepositions')")
     
+    parser.add_argument(
+        "--category",
+        type=str,
+        default="Gender_identity",
+        help="Specify a single category to paraphrase (e.g., 'Race_ethnicity')."
+    )
+    
     args = parser.parse_args()
     model = args.model
     modification = args.modification
+    category=args.category
 
     #Paths
     DATA_FOLDER='./data/paraphrases/'
-    TEMPLATE_FILE = DATA_FOLDER+"Gender_identity_original.csv"
+    TEMPLATE_FILE = DATA_FOLDER+f"{category}_original.csv"
     INSTRUCTION_FILE = DATA_FOLDER+"paraphrase_instructions.tsv"
-    OUTPUT_FILE = DATA_FOLDER+f"Gender_identity_{modification}_{model}.csv"
+    OUTPUT_FILE = DATA_FOLDER+f"{category}_{modification}_{model}.csv"
 
     #Loading API key
     #load_dotenv()  # load environment variables from .env
