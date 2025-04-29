@@ -150,8 +150,9 @@ def build_excel(gender_bbq_templates, paraphrase_df, output_path, modification):
 
 if __name__ == "__main__":
     #Config
-    modification='prepositions'
-    use_model='chatgpt'
+    # TODO: change every time !!!
+    modification='synonym_substitution'
+    use_model='deepseek'
 
     #Paths
     DATA_FOLDER='./data/paraphrases/'
