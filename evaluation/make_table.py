@@ -29,7 +29,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     file_dir = Path(args.result_dir)
 
-    summary_df=pd.read_csv(file_dir / "summary" / "sum.csv")
+    summary_df=pd.read_csv(file_dir / "summary" / "paraphrase_sum.csv")
     range_df, min_max_df = make_tables(summary_df)
 
     # Save both tables

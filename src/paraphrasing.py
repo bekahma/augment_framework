@@ -7,6 +7,7 @@ from openai import OpenAI
 from tqdm import tqdm
 import random
 from utils import return_list_from_string
+from dotenv import load_dotenv # for loading API key
 
 def choose_vocabulary(gender_bbq_templates):
     """
@@ -45,8 +46,6 @@ def choose_vocabulary(gender_bbq_templates):
     
     return original_df
 
-from dotenv import load_dotenv # for loading API key
-
 def get_openai_client(model_name, key):
     """
     Returns an OpenAI client and model name based on the specified backend.
@@ -64,6 +63,16 @@ def get_openai_client(model_name, key):
         return OpenAI(api_key=key), "gpt-4o"
     else:
         raise ValueError("Unknown model name: choose 'deepseek' or 'chatgpt'")
+    
+def extract_paraphrase_line(text):
+    """Extracts only the line starting with 'PARAPHRASE:' from model output."""
+    paraphrases = []
+    for line in text.splitlines():
+        if line.strip().startswith("PARAPHRASE: "):
+            paraphrase = line.split("PARAPHRASE: ", 1)[1].strip()
+            if paraphrase:  # avoid empty strings
+                paraphrases.append(paraphrase)
+    return paraphrases
 
 def paraphrase(para_modif, instructions_df, gender_bbq_templates, api_key, use_model="deepseek"):
     """
@@ -78,9 +87,14 @@ def paraphrase(para_modif, instructions_df, gender_bbq_templates, api_key, use_m
 
     # Loading the correct prompt template
     prompt_template=instructions_df.loc[instructions_df.modification==para_modif, "prompt"].values[0] 
+    print(prompt_template) #to check if the correct template is being used
 
     # Output DataFrame
     paraphrase_df=gender_bbq_templates.copy()
+
+    # Initialize empty columns for storing the paraphrases
+    paraphrase_df["Ambiguous_Paraphrases"] = None
+    paraphrase_df["Disambiguating_Paraphrases"] = None
 
     # Load model client and model name
     client, model_name = get_openai_client(use_model, api_key)
@@ -88,10 +102,7 @@ def paraphrase(para_modif, instructions_df, gender_bbq_templates, api_key, use_m
     #Iterating through BBQ templates
     for idx, row in tqdm(gender_bbq_templates.iterrows(), total=gender_bbq_templates.shape[0]):
         for _, disambiguated in enumerate([False, True]): #for each row, paraphrase ambiguous context alone or ambiguous+disambiguated
-            if disambiguated:
-                original_context=row["Disambiguating_Context"]
-            else: 
-                original_context=row["Ambiguous_Context"]
+            original_context = row["Disambiguating_Context"] if disambiguated else row["Ambiguous_Context"]
 
             prompt=prompt_template.format(original_context) #replace the placeholder {} in the prompt template with the context
             try:
@@ -100,19 +111,22 @@ def paraphrase(para_modif, instructions_df, gender_bbq_templates, api_key, use_m
                     model= model_name,
                     messages=[
                         {"role": "system", "content": "You are a helpful assistant"},
-                        {"role": "user", "content": prompt}], stream=False)
-                
+                        {"role": "user", "content": prompt}], 
+                        #temperature=1.2, top_p=0.9, #we can play with these parameters for more/less diversity
+                        stream=False)
+            
             except Exception as e:
                 print(f"Failed to generate for row {idx}, disambiguated {disambiguated}")
                 raise e
-                
-            #Retrieve the raw_response text
-            response_text=response.choices[0].message.content
+            
+            response_text = response.choices[0].message.content
+            paraphrases = extract_paraphrase_line(response_text)
+            
             if disambiguated:
-                paraphrase_df.loc[idx, "Disambiguating_Context"]=response_text
+                paraphrase_df.at[idx, "Disambiguating_Paraphrases"] = paraphrases
             else:
-                paraphrase_df.loc[idx, "Ambiguous_Context"]=response_text
-    
+                paraphrase_df.at[idx, "Ambiguous_Paraphrases"] = paraphrases
+
     return paraphrase_df
 
 if __name__ == "__main__":
@@ -120,32 +134,42 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Paraphrase BBQ templates using LLMs.")
     parser.add_argument("--model", choices=["deepseek", "chatgpt"], default="deepseek",
                         help="Choose the LLM backend to use: 'deepseek' or 'chatgpt'. Default is 'deepseek'.")
-    args = parser.parse_args()
+    parser.add_argument('--modification', type=str, default='prepositions',
+                        help="Type of modification to apply (e.g., 'prepositions')")
     
-    use_model = args.model
-    modification='synonym_substitution'
+    parser.add_argument(
+        "--category",
+        type=str,
+        default="Gender_identity",
+        help="Specify a single category to paraphrase (e.g., 'Race_ethnicity')."
+    )
+    
+    args = parser.parse_args()
+    model = args.model
+    modification = args.modification
+    category=args.category
 
     #Paths
     DATA_FOLDER='./data/paraphrases/'
-    TEMPLATE_FILE = DATA_FOLDER+"Gender_identity_original.csv"
+    TEMPLATE_FILE = DATA_FOLDER+f"{category}_original.csv"
     INSTRUCTION_FILE = DATA_FOLDER+"paraphrase_instructions.tsv"
-    OUTPUT_FILE = DATA_FOLDER+f"Gender_identity_{modification}_{use_model}.csv"
+    OUTPUT_FILE = DATA_FOLDER+f"{category}_{modification}_{model}.csv"
 
     #Loading API key
-    load_dotenv()  # load environment variables from .env
-    api_key = os.getenv("OPENAI_API_KEY")
+    #load_dotenv()  # load environment variables from .env
+    #api_key = os.getenv("OPENAI_API_KEY")
 
-    ''' TODO: standardize the api key loading process
-    with open(os.path.expanduser(f"~/{use_model}_api.key"), "r") as f:
+    #''' TODO: standardize the api key loading process
+    with open(os.path.expanduser(f"~/{model}_api.key"), "r") as f:
         api_key=f.read().strip()
-    '''
+    #'''
 
     # Loading the dataframes
     instructions_df=pd.read_csv(INSTRUCTION_FILE, sep='\t')
     gender_bbq_templates=pd.read_csv(TEMPLATE_FILE)
 
     #Paraphrasing
-    paraphrase_df=paraphrase(modification, instructions_df, gender_bbq_templates, api_key, use_model)
+    paraphrase_df=paraphrase(modification, instructions_df, gender_bbq_templates, api_key, model)
 
     #Saving output
     paraphrase_df.to_csv(OUTPUT_FILE, index=False)
