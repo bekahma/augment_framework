@@ -1,12 +1,15 @@
 """This script is for the generation of paraphrases."""
 
 import os
+import re
 import argparse
 import pandas as pd
 from openai import OpenAI
 from tqdm import tqdm
 import random
 from utils import return_list_from_string
+from transformers import pipeline, AutoTokenizer, AutoModelForCausalLM
+import torch
 from dotenv import load_dotenv # for loading API key
 
 def choose_vocabulary(gender_bbq_templates):
@@ -46,35 +49,64 @@ def choose_vocabulary(gender_bbq_templates):
     
     return original_df
 
-def get_openai_client(model_name, key):
+def get_openai_client(model_name):
     """
     Returns an OpenAI client and model name based on the specified backend.
 
     Args:
         model_name (str): The name of the model backend to use ("deepseek" or "chatgpt").
-        key (str): API key for the respective service.
 
     Returns:
         tuple: (OpenAI client instance, model name string)
+    
+    Note:
+        The API key must be set in the environment variable `OPENAI_API_KEY` before
+        calling this function. The client will automatically use this key.
     """
     if model_name == "deepseek":
-        return OpenAI(api_key=key, base_url="https://api.deepseek.com"), "deepseek-chat"
+        return OpenAI(base_url="https://api.deepseek.com"), "deepseek-chat"
     elif model_name == "chatgpt":
-        return OpenAI(api_key=key), "gpt-4o"
+        return OpenAI(), "gpt-4o"
     else:
         raise ValueError("Unknown model name: choose 'deepseek' or 'chatgpt'")
+    
+def load_mistral_model(model_name="mistralai/Mistral-7B-Instruct-v0.3"):
+    tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
+    model = AutoModelForCausalLM.from_pretrained(model_name, device_map="auto", torch_dtype=torch.float16)
+    return tokenizer, model
+
+def generate_with_mistral(prompt, tokenizer, model, max_new_tokens=256, temperature=0.7, top_p=0.9):
+    input_ids = tokenizer(prompt, return_tensors="pt").input_ids.to(model.device)
+    output_ids = model.generate(
+        input_ids,
+        max_new_tokens=max_new_tokens,
+        do_sample=True,
+        temperature=temperature,
+        top_p=top_p,
+        pad_token_id=tokenizer.eos_token_id
+    )
+    generated_text = tokenizer.decode(output_ids[0], skip_special_tokens=True)
+    return generated_text[len(prompt):].strip()  # remove prompt
     
 def extract_paraphrase_line(text):
     """Extracts only the line starting with 'PARAPHRASE:' from model output."""
     paraphrases = []
     for line in text.splitlines():
-        if line.strip().startswith("PARAPHRASE: "):
-            paraphrase = line.split("PARAPHRASE: ", 1)[1].strip()
-            if paraphrase:  # avoid empty strings
-                paraphrases.append(paraphrase)
+        line = line.strip()
+        match = re.match(r"PARAPHRASE(?: \d+)?:\s*(.+)", line)
+        if match:
+            paraphrases.append(match.group(1).strip())
+
+        else:
+            list_match = re.match(r"\d+\.\s+(.+)", line)
+            if list_match:
+                paraphrases.append(list_match.group(1).strip())
+
+    if paraphrases==[]:
+        print(text)
     return paraphrases
 
-def paraphrase(para_modif, instructions_df, gender_bbq_templates, api_key, use_model="deepseek"):
+def paraphrase(para_modif, instructions_df, gender_bbq_templates, use_model="deepseek"):
     """
     This function performs paraphrase on the whole Gender identity subset contexts
 
@@ -96,8 +128,11 @@ def paraphrase(para_modif, instructions_df, gender_bbq_templates, api_key, use_m
     paraphrase_df["Ambiguous_Paraphrases"] = None
     paraphrase_df["Disambiguating_Paraphrases"] = None
 
-    # Load model client and model name
-    client, model_name = get_openai_client(use_model, api_key)
+    if use_model == "mistral":
+        tokenizer, model = load_mistral_model()
+    else:
+        # Load model client and model name
+        client, model_name = get_openai_client(use_model)
 
     #Iterating through BBQ templates
     for idx, row in tqdm(gender_bbq_templates.iterrows(), total=gender_bbq_templates.shape[0]):
@@ -106,20 +141,23 @@ def paraphrase(para_modif, instructions_df, gender_bbq_templates, api_key, use_m
 
             prompt=prompt_template.format(original_context) #replace the placeholder {} in the prompt template with the context
             try:
-                #Call the API for the prompt
-                response = client.chat.completions.create(
-                    model= model_name,
-                    messages=[
-                        {"role": "system", "content": "You are a helpful assistant"},
-                        {"role": "user", "content": prompt}], 
-                        #temperature=1.2, top_p=0.9, #we can play with these parameters for more/less diversity
-                        stream=False)
+                if use_model == "mistral":
+                    response_text = generate_with_mistral(prompt, tokenizer, model)
+                else:
+                    #Call the API for the prompt
+                    response = client.chat.completions.create(
+                        model= model_name,
+                        messages=[
+                            {"role": "system", "content": "You are a helpful assistant"},
+                            {"role": "user", "content": prompt}], 
+                            temperature=0.7, top_p=0.9, #we can play with these parameters for more/less diversity
+                            stream=False)
+                    response_text = response.choices[0].message.content
             
             except Exception as e:
                 print(f"Failed to generate for row {idx}, disambiguated {disambiguated}")
                 raise e
             
-            response_text = response.choices[0].message.content
             paraphrases = extract_paraphrase_line(response_text)
             
             if disambiguated:
@@ -132,7 +170,7 @@ def paraphrase(para_modif, instructions_df, gender_bbq_templates, api_key, use_m
 if __name__ == "__main__":
     # Parse command-line arguments
     parser = argparse.ArgumentParser(description="Paraphrase BBQ templates using LLMs.")
-    parser.add_argument("--model", choices=["deepseek", "chatgpt"], default="deepseek",
+    parser.add_argument("--model", choices=["deepseek", "chatgpt", "mistral"], default="deepseek",
                         help="Choose the LLM backend to use: 'deepseek' or 'chatgpt'. Default is 'deepseek'.")
     parser.add_argument('--modification', type=str, default='prepositions',
                         help="Type of modification to apply (e.g., 'prepositions')")
@@ -155,21 +193,12 @@ if __name__ == "__main__":
     INSTRUCTION_FILE = DATA_FOLDER+"paraphrase_instructions.tsv"
     OUTPUT_FILE = DATA_FOLDER+f"{category}_{modification}_{model}.csv"
 
-    #Loading API key
-    #load_dotenv()  # load environment variables from .env
-    #api_key = os.getenv("OPENAI_API_KEY")
-
-    #''' TODO: standardize the api key loading process
-    with open(os.path.expanduser(f"~/{model}_api.key"), "r") as f:
-        api_key=f.read().strip()
-    #'''
-
     # Loading the dataframes
     instructions_df=pd.read_csv(INSTRUCTION_FILE, sep='\t')
     gender_bbq_templates=pd.read_csv(TEMPLATE_FILE)
 
     #Paraphrasing
-    paraphrase_df=paraphrase(modification, instructions_df, gender_bbq_templates, api_key, model)
+    paraphrase_df=paraphrase(modification, instructions_df, gender_bbq_templates, model)
 
     #Saving output
     paraphrase_df.to_csv(OUTPUT_FILE, index=False)
