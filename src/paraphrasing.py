@@ -75,38 +75,61 @@ def load_mistral_model(model_name="mistralai/Mistral-7B-Instruct-v0.3"):
     model = AutoModelForCausalLM.from_pretrained(model_name, device_map="auto", torch_dtype=torch.float16)
     return tokenizer, model
 
-def generate_with_mistral(prompt, tokenizer, model, max_new_tokens=256, temperature=0.7, top_p=0.9):
+def generate_with_mistral(prompt, tokenizer, model, temperature=1e-5,  max_new_tokens=256):
+    prompt=prompt.replace("{{NAME1}}", "{{NOUN1}}")
+    prompt=prompt.replace("{{NAME2}}", "{{NOUN2}}")
     input_ids = tokenizer(prompt, return_tensors="pt").input_ids.to(model.device)
     output_ids = model.generate(
         input_ids,
         max_new_tokens=max_new_tokens,
         do_sample=True,
         temperature=temperature,
-        top_p=top_p,
         pad_token_id=tokenizer.eos_token_id
     )
     generated_text = tokenizer.decode(output_ids[0], skip_special_tokens=True)
-    return generated_text[len(prompt):].strip()  # remove prompt
+    generated_text=generated_text[len(prompt):].strip() # remove prompt
+    generated_text=generated_text.replace("{{NOUN1}}", "{{NAME1}}")
+    generated_text=generated_text.replace("{{NOUN2}}", "{{NAME2}}")
+    return generated_text
     
 def extract_paraphrase_line(text):
     """Extracts only the line starting with 'PARAPHRASE:' from model output."""
     paraphrases = []
-    for line in text.splitlines():
-        line = line.strip()
-        match = re.match(r"PARAPHRASE(?: \d+)?:\s*(.+)", line)
+    lines = text.splitlines()
+    i = 0
+    while i < len(lines):
+        line = lines[i].strip()
+
+        # Match 'PARAPHRASE:' or 'PARAPHRASE 1:', etc.
+        match = re.search(r"PARAPHRASE(?: \d+)?:\s*(.*)", line, re.IGNORECASE)
         if match:
-            paraphrases.append(match.group(1).strip())
+            candidate = match.group(1).strip()
+            if len(candidate) >= 5:
+                paraphrases.append(candidate)
+            else:
+                # Try the next line if it's non-empty and not too short
+                if i + 1 < len(lines):
+                    next_line = lines[i + 1].strip()
+                    if len(next_line) >= 5:
+                        paraphrases.append(next_line)
+                    i += 1  # skip next line since it's consumed
 
         else:
+            # Match numbered list format like '1. paraphrase here'
             list_match = re.match(r"\d+\.\s+(.+)", line)
             if list_match:
-                paraphrases.append(list_match.group(1).strip())
+                candidate = list_match.group(1).strip()
+                if len(candidate) >= 5:
+
+                    paraphrases.append(candidate)
+        
+        i += 1
 
     if paraphrases==[]:
         print(text)
     return paraphrases
 
-def paraphrase(para_modif, instructions_df, gender_bbq_templates, use_model="deepseek"):
+def paraphrase(para_modif, instructions_df, gender_bbq_templates, use_model="deepseek", temperature=0):
     """
     This function performs paraphrase on the whole Gender identity subset contexts
 
@@ -150,7 +173,7 @@ def paraphrase(para_modif, instructions_df, gender_bbq_templates, use_model="dee
                         messages=[
                             {"role": "system", "content": "You are a helpful assistant"},
                             {"role": "user", "content": prompt}], 
-                            temperature=0.7, top_p=0.9, #we can play with these parameters for more/less diversity
+                            temperature=temperature,# top_p=1, #we can play with these parameters for more/less diversity
                             stream=False)
                     response_text = response.choices[0].message.content
             

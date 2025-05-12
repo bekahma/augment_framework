@@ -5,9 +5,12 @@ import ast
 import pickle
 import argparse
 import random
+import numpy as np
 from tqdm import tqdm
 import difflib
 import spacy
+from nltk.stem import PorterStemmer
+
 from bert_score import score
 from sentence_transformers import CrossEncoder
 from rouge_score import rouge_scorer
@@ -24,19 +27,24 @@ tool = language_tool_python.LanguageTool('en-US')
 
 # Load spaCy English model
 nlp = spacy.load("en_core_web_sm")
+stemmer = PorterStemmer()
 
 #Load cross encoder model for sbert
 ce_model = CrossEncoder("cross-encoder/stsb-distilroberta-base")
 
 # Load pre-trained model and tokenizer from Hugging Face for perplexity
-model_name = "EleutherAI/gpt-neo-1.3B"
-perplexity_model = AutoModelForCausalLM.from_pretrained(model_name)
+model_name = "EleutherAI/gpt-neo-2.7B"
+#model_name = "mistralai/Mistral-7B-v0.1"
+perplexity_model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype="auto")
 perplexity_tokenizer = AutoTokenizer.from_pretrained(model_name)
 
 #AAE classifier
 aae_model = DebertaV2ForSequenceClassification.from_pretrained("webis/acl2024-aae-dialect-classification", subfolder="model")
 aae_tokenizer = AutoTokenizer.from_pretrained("microsoft/deberta-v3-base")
-classifier = pipeline("text-classification", model=aae_model, tokenizer=aae_tokenizer)
+aae_classifier = pipeline("text-classification", model=aae_model, tokenizer=aae_tokenizer)
+
+#Formal classifier
+formal_classifier = pipeline("text-classification", model="LenDigLearn/formality-classifier-mdeberta-v3-base")
 
 #UTILS FUNCTIONS
 def compute_rouge_l(reference, candidate):
@@ -76,45 +84,69 @@ def compare_sentences(sentence1, sentence2):
         elif token.startswith('+ '):
             changes["added"].append((token[2:], index2))
             index2 += 1
-
     return changes
-
-def lemmatize_list(words):
-    return [nlp(w)[0].lemma_ for w in words]
-
-def compare_lemmas(row):
-    '''For prepositions modification, check if the lemmas of wrong added and wrong removed are identical'''
-    return lemmatize_list(row['wrong_added']) == lemmatize_list(row['wrong_removed'])
 
 def detect_AAE(text):
     '''Classify the text as SAE or AAE'''
     text=text.replace('{{NAME1}}', 'woman')
     text=text.replace('{{NAME2}}', 'man')
-    return classifier(text)
+    return aae_classifier(text)
 
-def grammar_errors(sentence1, sentence2):
+def detect_formal(text):
+    '''Classify the text as formal, neutral, or informal'''
+    text=text.replace('{{NAME1}}', 'woman')
+    text=text.replace('{{NAME2}}', 'man')
+    return formal_classifier(text)
+
+def grammar_errors(sentence1, sentence2, excluded_categories={"TYPOS", "PUNCTUATION", "REDUNDANCY"}):
     '''Checks for new grammar errors in sentence 2'''
-    errors1 = tool.check(sentence1) 
-    errors2 = tool.check(sentence2) 
-            
-    # Convert the list of errors to sets
-    errors1 = set([str(error) for error in errors1])
-    errors2 = set([str(error) for error in errors2])
+    errors1 = [e for e in tool.check(sentence1) if e.category != None and e.category not in excluded_categories]
+    errors2 = [e for e in tool.check(sentence2) if e.category != None and e.category not in excluded_categories]
 
-    return errors2 - errors1
+    def extract_error_signature(error):
+        return (error.ruleId, error.message)
+
+    error_set1 = set(extract_error_signature(e) for e in errors1)
+    error_set2 = set(extract_error_signature(e) for e in errors2)
+
+    new_errors = error_set2 - error_set1
+    return [e for e in errors2 if extract_error_signature(e) in new_errors]
 
 def compute_perplexity(text):
     '''Compute perplexity'''
+    #text=text.replace('{{NAME1}}', 'woman')
+    #text=text.replace('{{NAME2}}', 'man')
+
     # Encode the text and get input tensors
     inputs = perplexity_tokenizer(text, return_tensors="pt")
+    input_ids = inputs["input_ids"]
+
+    device = next(perplexity_model.parameters()).device
+    input_ids = input_ids.to(device)
     
     # Get the model's output
     with torch.no_grad():
-        outputs = perplexity_model(**inputs, labels=inputs["input_ids"])
-        log_likelihood = outputs.loss * inputs["input_ids"].size(1)
+        outputs = perplexity_model(input_ids=input_ids, labels=input_ids)
+        logits=outputs.logits
+        loss = outputs.loss
+
+    '''# Calculate token-level perplexity
+    # We calculate perplexity for each token based on the corresponding logits and the input_ids
+    token_perplexities = []
+    for i in range(input_ids.size(1)):  # iterate over each token in the sequence
+        # Get the logits for the current token
+        logit = logits[0, i]
+        target_id = input_ids[0, i]
+        
+        # Calculate the log probability for the token
+        log_prob = torch.log_softmax(logit, dim=-1)
+        
+        # Perplexity for this token is exp(-log_prob for the correct token)
+        token_perplexity = torch.exp(-log_prob[target_id]).item()
+        token_perplexities.append(token_perplexity)'''
     
-    # Compute perplexity
-    perplexity = torch.exp(log_likelihood / inputs["input_ids"].size(1))
+    perplexity = torch.exp(loss)
+    #tokens = perplexity_tokenizer.convert_ids_to_tokens(input_ids[0])
     return perplexity.item()
 
 def detect_pos(doc_paraphrased, doc_original, added_tokens, removed_tokens, pos_tags_to_check, allowed_deps):
@@ -122,30 +154,36 @@ def detect_pos(doc_paraphrased, doc_original, added_tokens, removed_tokens, pos_
     Identifies POS tags of added and removed tokens in a paraphrased sentence, 
     and flags any that do not match the expected POS or syntactic dependencies.
     """
-    # Get POS tags only for changed words in their sentence context
-    added_pos_tags = [
-        token.pos_ for i, token in enumerate(doc_paraphrased)
-        if (token.text, i) in added_tokens
-    ]
-    removed_pos_tags = [
-        token.pos_ for i, token in enumerate(doc_original)
-        if (token.text, i) in removed_tokens
-    ]
-    #Check if correct POS tags were added/removed
-    wrong_added = [
-        token.lemma_ for i, token in enumerate(doc_paraphrased)
-        if (token.text, i) in added_tokens
-        and token.pos_ not in pos_tags_to_check
-        and token.dep_ not in allowed_deps
-        and not token.is_space and not token.is_punct
-    ]
-    wrong_removed = [
-        token.lemma_ for i, token in enumerate(doc_original)
-        if (token.text, i) in removed_tokens
-        and token.pos_ not in pos_tags_to_check
-        and token.dep_ not in allowed_deps
-        and not token.is_space and not token.is_punct
-    ]
+    added_pos_tags = []
+    wrong_added = []
+
+    for i, token in enumerate(doc_paraphrased):
+        key = (token.text, i)
+        if key in added_tokens:
+            added_pos_tags.append(token.pos_)
+            if (
+                token.pos_ not in pos_tags_to_check and
+                token.dep_ not in allowed_deps and
+                not token.is_space and
+                not token.is_punct 
+            ):
+                wrong_added.append(token.text)
+    
+    removed_pos_tags = []
+    wrong_removed = []
+
+    for i, token in enumerate(doc_original):
+        key = (token.text, i)
+        if key in removed_tokens:
+            removed_pos_tags.append(token.pos_)
+            if (
+                token.pos_ not in pos_tags_to_check and
+                token.dep_ not in allowed_deps and
+                not token.is_space and
+                not token.is_punct
+            ):
+                wrong_removed.append(token.text)
+
     return added_pos_tags, removed_pos_tags, wrong_added, wrong_removed
 
 def automatic_detection(original_context, paraphrase, modification, other_metrics=True):
@@ -190,7 +228,7 @@ def automatic_detection(original_context, paraphrase, modification, other_metric
     
     if modification=='prepositions': #Specific metrics for the preposition modification 
         
-        pos_tags_to_check = {'DET', "ADP", "SCONJ", 'ADV', 'CCONJ', 'PART'} 
+        pos_tags_to_check = {'DET', 'ADV', "ADP", "SCONJ", 'CCONJ', 'PART'} 
         allowed_deps = {"prep"}
 
         added_pos_tags, removed_pos_tags, wrong_added, wrong_removed=detect_pos(doc_paraphrased, doc_original, added_tokens, removed_tokens, pos_tags_to_check, allowed_deps)
@@ -205,6 +243,16 @@ def automatic_detection(original_context, paraphrase, modification, other_metric
     elif modification=='AAE': #Specific metrics for the AAE modification 
         pred_original=detect_AAE(original_context)[0]
         pred_par=detect_AAE(paraphrase)[0]
+        metrics.update({
+            "label_ori": pred_original["label"],
+            "proba_ori": pred_original["score"],
+            "label_par": pred_par["label"],
+            "proba_par": pred_par["score"],
+        })
+    
+    elif modification=='formal':
+        pred_original=detect_formal(original_context)[0]
+        pred_par=detect_formal(paraphrase)[0]
         metrics.update({
             "label_ori": pred_original["label"],
             "proba_ori": pred_original["score"],
@@ -255,6 +303,7 @@ def build_excel(paraphrase_df, output_path, modification):
     """
     #Columns per type of modification
     columns_per_modif={'AAE': ["label_ori", "label_par", "proba_ori", "proba_par"],
+                       'formal': ["label_ori", "label_par", "proba_ori", "proba_par"],
             'prepositions': ['pos_added', 'pos_removed', 'wrong_added', "wrong_removed"]}
     
     annotations_df=pd.DataFrame(columns=['idx', 'Q_id', "disambiguated", 'modification',  'original', 'raw_answer', 'nb_modif', 
@@ -293,8 +342,8 @@ def build_excel(paraphrase_df, output_path, modification):
                 #Append new row to the dataframe
                 annotations_df.loc[len(annotations_df)]=new_row
 
-    #Exporting to excel
-    annotations_df.to_excel(output_path, index=False)
+        #Exporting to excel
+        annotations_df.to_excel(output_path, index=False)
 
 def filter_out(paraphrase_df, output_path, modification):
     """
@@ -343,9 +392,14 @@ def filter_out(paraphrase_df, output_path, modification):
                         wrong_added=metrics_dict['wrong_added']
                         wrong_removed=metrics_dict['wrong_removed']
                         if len(wrong_added)!=0 or len(wrong_removed)!=0: 
-                            if wrong_added!=wrong_removed: 
-                                paraphrases.remove(paraphrase)
-                                nb_wrong+=1
+                            wrong_added_lem=[nlp(w)[0].lemma_ for w in wrong_added]
+                            wrong_removed_lem=[nlp(w)[0].lemma_ for w in wrong_removed]
+                            if wrong_added_lem!=wrong_removed_lem: 
+                                wrong_added_stem=[stemmer.stem(w) for w in wrong_added]
+                                wrong_removed_stem=[stemmer.stem(w) for w in wrong_removed]
+                                if wrong_added_stem!=wrong_removed_stem:
+                                    paraphrases.remove(paraphrase)
+                                    nb_wrong+=1
                 
                     elif modification=='AAE': 
                         #Automatic detection for AAE
