@@ -82,6 +82,6 @@ if __name__ == "__main__":
                 pred=str(pred)
             existing_responses.append(pred)
 
-        # save output
-        with open(file_path, "w") as f:
-            f.write("\n".join(existing_responses))
+            # save output
+            with open(file_path, "w") as f:
+                f.write("\n".join(existing_responses))
