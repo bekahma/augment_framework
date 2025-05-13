@@ -228,7 +228,7 @@ def automatic_detection(original_context, paraphrase, modification, other_metric
     
     if modification=='prepositions': #Specific metrics for the preposition modification 
         
-        pos_tags_to_check = {'DET', 'ADV', "ADP", "SCONJ", 'CCONJ', 'PART'} 
+        pos_tags_to_check = {'DET', 'ADV', "ADP", "SCONJ", 'CCONJ', 'PART', 'PRON'} 
         allowed_deps = {"prep"}
 
         added_pos_tags, removed_pos_tags, wrong_added, wrong_removed=detect_pos(doc_paraphrased, doc_original, added_tokens, removed_tokens, pos_tags_to_check, allowed_deps)
@@ -279,12 +279,15 @@ def automatic_detection(original_context, paraphrase, modification, other_metric
         wrong_removed=[]
     
     if other_metrics:
+        ppl_ori=compute_perplexity(original_context)
+        ppl_par=compute_perplexity(paraphrase)
         metrics.update({"bert_score": compute_bert_score(original_context, paraphrase), 
                 "sbert_score": compute_sbert(original_context, paraphrase),
                 "rouge_l": compute_rouge_l(original_context, paraphrase),
                 'grammar': grammar_errors(original_context, paraphrase),
-                "perplexity_par": compute_perplexity(paraphrase),
-                "perplexity_original": compute_perplexity(original_context)})
+                "perplexity_par": ppl_par,
+                "perplexity_original": ppl_ori,
+                "perplexity_ratio":ppl_par/ppl_ori})
     
     return metrics
 
@@ -309,7 +312,8 @@ def build_excel(paraphrase_df, output_path, modification):
     annotations_df=pd.DataFrame(columns=['idx', 'Q_id', "disambiguated", 'modification',  'original', 'raw_answer', 'nb_modif', 
                                          'wrong_modif', 'realism', 'meaning', #columns for human annotation
                                          'added_words', 'removed_words', 'grammar', 
-                                         "bert_score", "sbert_score", "rouge_l", 'perplexity_par', 'perplexity_original']
+                                         "bert_score", "sbert_score", "rouge_l", 
+                                         'perplexity_par', 'perplexity_original', "perplexity_ratio"]
                                          +columns_per_modif[modification] #specific columns to each type of modification
                                          ) 
     
@@ -357,10 +361,8 @@ def filter_out(paraphrase_df, output_path, modification):
     Returns:
         List[int]: Indices of rows to keep after filtering.
     """
-    idx_to_keep=[]
-    nb_untouched, nb_wrong=0, 0 #counters for untouched sentences (no modifications) and wrong paraphrases
-    for idx, row in tqdm(paraphrase_df.iterrows(), total=paraphrase_df.shape[0]): 
-        delete_ctx={}
+    nb_replaced, nb_untouched, nb_wrong=0, 0, 0 #counters for untouched sentences (no modifications) and wrong paraphrases
+    for _, row in tqdm(paraphrase_df.iterrows(), total=paraphrase_df.shape[0]): 
         for _, disambiguated in enumerate([False, True]): 
             if disambiguated:
                 key="Disambiguating_Context"
@@ -375,8 +377,10 @@ def filter_out(paraphrase_df, output_path, modification):
 
             for paraphrase in paraphrases:
 
-                metrics_dict=automatic_detection(original_context, paraphrase, modification, other_metrics=False)
+                metrics_dict=automatic_detection(original_context, paraphrase, modification, other_metrics=True)
                 nb_modifs=metrics_dict['nb_modif']
+                perplexity_ratio = metrics_dict["perplexity_ratio"]
+                sbert_score = metrics_dict["sbert_score"]
 
                 if nb_modifs==0: 
                     #remove paraphrase if no modification was applied
@@ -386,50 +390,83 @@ def filter_out(paraphrase_df, output_path, modification):
                 else:
                     if modification=='prepositions': 
                         #Automatic detection for prepositions:
-                        # Remove paraphrase if incorrect POS tags added/removed
-                        # except if same lemmas added/removed 
-                        # (for instance "due to ... being" vs "because ... is")
                         wrong_added=metrics_dict['wrong_added']
                         wrong_removed=metrics_dict['wrong_removed']
-                        if len(wrong_added)!=0 or len(wrong_removed)!=0: 
-                            wrong_added_lem=[nlp(w)[0].lemma_ for w in wrong_added]
-                            wrong_removed_lem=[nlp(w)[0].lemma_ for w in wrong_removed]
-                            if wrong_added_lem!=wrong_removed_lem: 
-                                wrong_added_stem=[stemmer.stem(w) for w in wrong_added]
-                                wrong_removed_stem=[stemmer.stem(w) for w in wrong_removed]
-                                if wrong_added_stem!=wrong_removed_stem:
-                                    paraphrases.remove(paraphrase)
-                                    nb_wrong+=1
+                        keep=False
+                        
+                        # Case 1: No incorrect POS tags added/removed
+                        if not wrong_added and not wrong_removed:
+                            keep = True
+                        else:
+                            # Case 2: Check lemma equivalence
+                            wrong_added_lem = [nlp(w)[0].lemma_ for w in wrong_added]
+                            wrong_removed_lem = [nlp(w)[0].lemma_ for w in wrong_removed]
+                            if wrong_added_lem == wrong_removed_lem:
+                                keep = True
+                            else:
+                                # Case 3: Check stem equivalence
+                                wrong_added_stem = [stemmer.stem(w) for w in wrong_added]
+                                wrong_removed_stem = [stemmer.stem(w) for w in wrong_removed]
+                                if wrong_added_stem == wrong_removed_stem:
+                                    keep = True
+
+                        # Final filtering based on similarity and fluency
+                        if not keep or perplexity_ratio >= 1.85 or sbert_score <= 0.8:
+                            paraphrases.remove(paraphrase)
+                            nb_wrong += 1
                 
-                    elif modification=='AAE': 
-                        #Automatic detection for AAE
-                        pred_label=metrics_dict["label_par"]
-                        proba_paraphrase=metrics_dict["proba_par"]
-                        proba_original=metrics_dict["proba_ori"]
-                        if pred_label=="LABEL_0": #predicted as SAE
-                            if proba_paraphrase>0.9 or proba_paraphrase>proba_original:
-                                paraphrases.remove(paraphrase)
-                                nb_wrong+=1
+                    elif modification == 'AAE':
+                        # Automatic detection for AAE
+                        pred_label = metrics_dict["label_par"]
+                        proba_paraphrase = metrics_dict["proba_par"]
+                        proba_original = metrics_dict["proba_ori"]
+                        keep = False
+
+                        # Keep if paraphrase is predicted as AAE (LABEL_1)
+                        if pred_label == "LABEL_1":
+                            keep = True
+                        # Or if it's not strongly SAE (based on probability comparisons)
+                        elif (proba_paraphrase < proba_original) and (proba_paraphrase <= 0.9):
+                            keep = True
+
+                        # Also require semantic similarity threshold
+                        if not keep or sbert_score <= 0.75:
+                            paraphrases.remove(paraphrase)
+                            nb_wrong += 1
+
+                    elif modification == 'formal':
+                        # Automatic detection for formal language
+                        pred_label = metrics_dict["label_par"]
+                        proba_paraphrase = metrics_dict["proba_par"]
+                        proba_original = metrics_dict["proba_ori"]
+                        keep = False
+
+                        # Keep if predicted as formal
+                        if pred_label == "formal":
+                            keep = True
+                        # Or if paraphrase is less likely to be informal than original
+                        elif pred_label == "neutral" and proba_paraphrase < proba_original:
+                            keep = True
+
+                        # Also check fluency and semantic similarity
+                        if not keep or perplexity_ratio >= 2 or sbert_score <= 0.75:
+                            paraphrases.remove(paraphrase)
+                            nb_wrong += 1
                     else:
                         #TODO adapt to other modifications
                         raise ValueError(f"No automatic rules were set up for the {modification} modification")
             
             if len(paraphrases)>0: #at least one paraphrase is correct
-                row[key]=random.choice(paraphrases)
+                row[key]=paraphrases[0] #we take the first one
             else: #all paraphrases were incorrect
-                delete_ctx[key]=True
+                row[key]=original_context #we keep original context
+                nb_replaced+=1
 
-        if not any(delete_ctx.values()): 
-            #because of the BBQ structure, if we need to delete the ambiguous context we also need to delete its disambiguated counterpart and vice versa
-            idx_to_keep.append(idx)
-
+    print(f"Number of replaced contexts out of {len(paraphrase_df)*2}:", nb_replaced) 
     print("Number of untouched paraphrases:", nb_untouched) 
     print("Number of wrong paraphrases:", nb_wrong) 
-    print("Rows kept out of 60:", len(idx_to_keep))
-    paraphrase_df=paraphrase_df.loc[idx_to_keep]
     paraphrase_df.to_csv(output_path, index=False)
     print("Filtered dataframe saved to", output_path)
-    return idx_to_keep
 
 
 if __name__ == "__main__":
@@ -440,6 +477,12 @@ if __name__ == "__main__":
                         help="Type of modification to apply (e.g., 'prepositions')")
     parser.add_argument('--model', type=str, default='deepseek',
                         help="Model to use (e.g., 'deepseek')")
+    parser.add_argument(
+        "--category",
+        type=str,
+        default="Gender_identity",
+        help="Specify a single category to paraphrase (e.g., 'Race_ethnicity')."
+    )
     parser.add_argument('--building', action='store_true',
                         help="Building the excel file for annotations (default: False)")
     parser.add_argument('--filtering', action='store_true',
@@ -449,21 +492,19 @@ if __name__ == "__main__":
 
     modification = args.modification
     model = args.model
+    category=args.category
     building = args.building
     filtering = args.filtering
 
-    print(f"Results for {modification} with {model}")
+    print(f"Results for the subset {category} modified with {modification} generated by {model}")
 
     #Paths
-    DATA_FOLDER='./data/paraphrases/'
-    TEMPLATE_FILE = DATA_FOLDER+"Gender_identity_original.csv"
-    PARAPHRASE_FILE=DATA_FOLDER+f"Gender_identity_{modification}_{model}.csv"
-    OUTPUT_EXCEL_FILE = DATA_FOLDER+f"Gender_identity_{modification}_{model}.xlsx"
-    OUTPUT_FILTERED_FILE = DATA_FOLDER+f"Gender_identity_{modification}_{model}_filtered_new.csv"
-    IDS_KEEP= DATA_FOLDER+f"Gender_identity_{modification}_{model}_ids_new.pkl"
+    DATA_FOLDER=f'./data/paraphrases/{modification}/'
+    PARAPHRASE_FILE=DATA_FOLDER+f"{category}_{modification}_{model}.csv"
+    OUTPUT_EXCEL_FILE = DATA_FOLDER+f"{category}_{modification}_{model}.xlsx"
+    OUTPUT_FILTERED_FILE = DATA_FOLDER+f"{category}_{modification}_{model}_filtered.csv"
 
     #Loading data
-    gender_bbq_templates=pd.read_csv(TEMPLATE_FILE)
     paraphrase_df=pd.read_csv(PARAPHRASE_FILE)
     paraphrase_df["Disambiguating_Paraphrases"]=paraphrase_df["Disambiguating_Paraphrases"].apply(ast.literal_eval)
     paraphrase_df["Ambiguous_Paraphrases"]=paraphrase_df["Ambiguous_Paraphrases"].apply(ast.literal_eval)
@@ -473,8 +514,6 @@ if __name__ == "__main__":
         build_excel(paraphrase_df, OUTPUT_EXCEL_FILE, modification)
     
     if filtering:
-        ids_to_keep=filter_out(paraphrase_df, OUTPUT_FILTERED_FILE, modification)
-        with open(IDS_KEEP, 'wb') as f: #save the ids to keep
-            pickle.dump(ids_to_keep, f)
+        filter_out(paraphrase_df, OUTPUT_FILTERED_FILE, modification)
 
 

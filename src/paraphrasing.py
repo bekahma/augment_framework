@@ -12,16 +12,16 @@ from transformers import pipeline, AutoTokenizer, AutoModelForCausalLM
 import torch
 from dotenv import load_dotenv # for loading API key
 
-def choose_vocabulary(gender_bbq_templates):
+def choose_vocabulary(bbq_templates):
     """
     This function choose vocabulary words in the BBQ templates.
     Should be performed only once on each stereotypical category before paraphrasing, so that all original templates have the same lexical diversity.
     """
 
-    original_df=gender_bbq_templates.copy()
+    original_df=bbq_templates.copy()
 
     #Iterating through BBQ templates
-    for idx, row in tqdm(gender_bbq_templates.iterrows(), total=gender_bbq_templates.shape[0]):
+    for idx, row in tqdm(bbq_templates.iterrows(), total=bbq_templates.shape[0]):
         #some templates have lexical diversity, we just pick one word randomly as in the BBQ construction
         lex_div = row['Lexical_diversity']
         if pd.notna(lex_div):
@@ -129,7 +129,7 @@ def extract_paraphrase_line(text):
         print(text)
     return paraphrases
 
-def paraphrase(para_modif, instructions_df, gender_bbq_templates, use_model="deepseek", temperature=0):
+def paraphrase(para_modif, instructions_df, bbq_templates, use_model="deepseek", temperature=0):
     """
     This function performs paraphrase on the whole Gender identity subset contexts
 
@@ -145,7 +145,7 @@ def paraphrase(para_modif, instructions_df, gender_bbq_templates, use_model="dee
     print(prompt_template) #to check if the correct template is being used
 
     # Output DataFrame
-    paraphrase_df=gender_bbq_templates.copy()
+    paraphrase_df=bbq_templates.copy()
 
     # Initialize empty columns for storing the paraphrases
     paraphrase_df["Ambiguous_Paraphrases"] = None
@@ -158,7 +158,7 @@ def paraphrase(para_modif, instructions_df, gender_bbq_templates, use_model="dee
         client, model_name = get_openai_client(use_model)
 
     #Iterating through BBQ templates
-    for idx, row in tqdm(gender_bbq_templates.iterrows(), total=gender_bbq_templates.shape[0]):
+    for idx, row in tqdm(bbq_templates.iterrows(), total=bbq_templates.shape[0]):
         for _, disambiguated in enumerate([False, True]): #for each row, paraphrase ambiguous context alone or ambiguous+disambiguated
             original_context = row["Disambiguating_Context"] if disambiguated else row["Ambiguous_Context"]
 
@@ -210,18 +210,24 @@ if __name__ == "__main__":
     modification = args.modification
     category=args.category
 
+    print(f"Paraphrasing for modification {modification} with model {model} for subset {category}")
+
     #Paths
     DATA_FOLDER='./data/paraphrases/'
     TEMPLATE_FILE = DATA_FOLDER+f"{category}_original.csv"
     INSTRUCTION_FILE = DATA_FOLDER+"paraphrase_instructions.tsv"
-    OUTPUT_FILE = DATA_FOLDER+f"{category}_{modification}_{model}.csv"
+
+    #Output path
+    OUTPUT_FOLDER = f'./data/paraphrases/{modification}/'
+    os.makedirs(OUTPUT_FOLDER, exist_ok=True)
+    OUTPUT_FILE = OUTPUT_FOLDER+f"{category}_{modification}_{model}.csv"
 
     # Loading the dataframes
     instructions_df=pd.read_csv(INSTRUCTION_FILE, sep='\t')
-    gender_bbq_templates=pd.read_csv(TEMPLATE_FILE)
+    bbq_templates=pd.read_csv(TEMPLATE_FILE)
 
     #Paraphrasing
-    paraphrase_df=paraphrase(modification, instructions_df, gender_bbq_templates, model)
+    paraphrase_df=paraphrase(modification, instructions_df, bbq_templates, model)
 
     #Saving output
     paraphrase_df.to_csv(OUTPUT_FILE, index=False)

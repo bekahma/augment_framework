@@ -34,18 +34,24 @@ def should_use_proper_names(row):
 
 def get_proper_name_list(category, bias_targets, names_vocab):
     '''Comment this function'''
+    first_names_full=None
     if category == "Race_ethnicity":
-        names = names_vocab[names_vocab.First_last == "first"]
         if len(bias_targets) >= 1:
-            names = names[names.ethnicity.isin(bias_targets)]
-        return downsample(names.Name.tolist())
+            first_names_full = names_vocab[names_vocab.First_last == "first"]
+            first_names = first_names_full[
+                first_names_full.ethnicity.isin(bias_targets)
+            ]
+        else:
+            first_names = names_vocab[names_vocab.First_last == "first"]
+        return downsample(first_names.Name.tolist()), first_names, first_names_full
 
     if category == "Gender_identity":
-        names = names_vocab[(names_vocab.First_last == "first_only") & (names_vocab.gender == "F")]
-        return downsample(names.Name.tolist())
+        first_names = names_vocab[names_vocab.First_last == "first_only"]
+        female_first_names = first_names[first_names.gender == "F"]
+        return downsample(female_first_names.Name.tolist()), first_names, first_names_full
 
-    names = names_vocab[names_vocab.First_last == "first_only"]
-    return downsample(names.Name.tolist(), 6)
+    first_names = names_vocab[names_vocab.First_last == "first_only"]
+    return downsample(first_names.Name.tolist(), 6), first_names, first_names_full
 
 def get_name_info(first_names, name, field):
     try:
@@ -195,20 +201,29 @@ def generate_data_for_category(category, data_path, output_path, vocab, names_vo
             bias_targets = ast.literal_eval(row.Known_stereotyped_groups)
             targeted_words = [
                 w for w in possible_words if w in bias_targets
-            ] if bias_targets and category in NEED_STEREOTYPING_SUBSET else possible_words
+            ] if (len(bias_targets) > 1) and category in NEED_STEREOTYPING_SUBSET else possible_words
 
             # if the list of bias targets is too big, downsample
-            word_list = downsample(targeted_words) #TODO what if possible_wordl_list<2?
-            has_proper_name = should_use_proper_names(row)
-            subcat = row.get("Subcategory", "None")
-            if len(subcat) > 1:
-                words = words[words.SubCat == subcat]
-                word_list = words.Name.unique().tolist()
-                if len(word_list) > 5:
-                    word_list = random.sample(word_list, 5) 
+            if len(targeted_words) > 4:
+                word_list = random.sample(targeted_words, 5)
+            elif len(possible_words) < 2:  # these will be handled later
+                word_list = []
             else:
-                subcat = "None"
+                word_list = targeted_words
 
+            has_proper_name = should_use_proper_names(row)
+            if "Subcategory" in frame_cols:
+                this_subcat = frames.Subcategory[idx]
+                if len(this_subcat) > 1:
+                    words = words[words.SubCat == this_subcat]
+                    word_list = words.Name.unique().tolist()
+                    if len(word_list) > 5:
+                        word_list = random.sample(word_list, 5)  # for downsampling
+                else:
+                    this_subcat = "None"
+            else:
+                this_subcat = "None"
+            
             custom_names = row.get("Names", "")
             if len(custom_names) > 1:
                 word_list, new_word_list = return_list_from_string(custom_names)
@@ -219,6 +234,9 @@ def generate_data_for_category(category, data_path, output_path, vocab, names_vo
                 first_names, first_names_full=None, None
 
             for name1 in word_list:
+                Name1_info = None
+                Name2_info = None
+                Name2_info_dict = {}
                 if len(custom_names)<2:
                     new_word_list, Name1_info, Name2_info_dict=get_new_word_list(category, name1, word_list, 
                                                                                  possible_words, bias_targets, NEED_STEREOTYPING_SUBSET, 
@@ -226,17 +244,56 @@ def generate_data_for_category(category, data_path, output_path, vocab, names_vo
                                                                                  names_vocab)
 
                 for name2 in new_word_list:
+                    # need to record info about the names that were used for easier analysis later
+                    if (
+                        Name1_info is not None
+                        and category == "Race_ethnicity"
+                        and has_proper_name
+                    ):
+                        Name2_info = Name2_info_dict[name2]
+                    elif category == "Gender_identity" and has_proper_name:
+                        try:
+                            Name2_info = first_names.loc[
+                                first_names["Name"] == name2, "gender"
+                            ].iloc[0]
+                        except IndexError:
+                            Name2_info = name2
+                        if row.NAME1_info[0] != "":
+                            # in some cases, there info both from the name selected and info tracked in an info column
+                            # in the template. Need to save both of these pieces of info
+                            if k == 0:
+                                Name1_info = row.NAME1_info[0] + "_" + Name1_info
+                            Name2_info = row.NAME2_info[0] + "_" + Name2_info
+                    elif category == "Nationality" or (
+                        category == "SES" and this_subcat == "Occupation"
+                    ):
+                        # need to get the relevant info about the name from the vocab file
+                        Name1_info = vocab.loc[vocab["Name"] == name1, "Info"].iloc[0]
+                        Name2_info = vocab.loc[vocab["Name"] == name2, "Info"].iloc[0]
+                    elif "NAME1_info" in frame_cols:
+                        # for when the info about the name variables is stored in the templates
+                        if row.NAME1_info and row.NAME1_info[0] != "":
+                            Name1_info = row.NAME1_info[0]
+                            Name2_info = row.NAME2_info[0]
+                        else:
+                            Name1_info = name1
+                            Name2_info = name2
+                    else:
+                        # if none of the above apply, just store the info as the actual string used in the name
+                        Name1_info = name1
+                        Name2_info = name2
+                        
                     item_id = process_pair(
                         dat_file, category, frames.iloc[[idx]].reset_index(), name1, name2,
-                        frame_cols, UNKNOWN_OPTIONS, bias_targets, subcat,
-                        Name1_info, Name2_info_dict.get(name2, name2), item_id
+                        frame_cols, UNKNOWN_OPTIONS, bias_targets, this_subcat,
+                        Name1_info, Name2_info, item_id
                     )
 
-                    if category in NEED_STEREOTYPING_SUBSET or has_proper_name or (category == "SES" and subcat == "Occupation"):
+                    if category in NEED_STEREOTYPING_SUBSET or has_proper_name or (category == "SES" and this_subcat == "Occupation"):
                         item_id = process_pair(
                             dat_file, category, frames.iloc[[idx]].reset_index(), name2, name1,
-                            frame_cols, UNKNOWN_OPTIONS, bias_targets, subcat,
-                            Name2_info_dict.get(name2, name2), Name1_info, item_id
+                            frame_cols, UNKNOWN_OPTIONS, bias_targets, this_subcat,
+                            Name2_info, Name1_info, item_id
                         )
 
         print(f"Generated {item_id} items for category: {category}")
@@ -272,7 +329,7 @@ if __name__ == "__main__":
         "--category",
         type=str,
         default="Gender_identity",
-        help="Specify a single category to generate (e.g., 'Race_ethnicity'), or 'all' to process everything."
+        help="Specify a single category to generate (e.g., 'Race_ethnicity')."
     )
 
     parser.add_argument('--modification', type=str, default='prepositions',
@@ -283,24 +340,22 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     #Paths
-    VOC_FOLDER='./data/BBQ_templates/'
-    DATA_FOLDER='./data/paraphrases/'
     modification = args.modification
     model = args.model
+    VOC_FOLDER='./data/BBQ_templates/'
+    if modification=="original":
+        DATA_FOLDER=f'./data/paraphrases/'
+        DATA_PATH=DATA_FOLDER+f"{args.category}_original.csv" 
+        OUTPUT_PATH=f"./data/jsonl/{args.category}_original_None.jsonl"
+    else:
+        DATA_FOLDER=f'./data/paraphrases/{modification}/'
+        DATA_PATH=DATA_FOLDER+f"{args.category}_{modification}_{model}_filtered.csv" 
+        OUTPUT_PATH=f"./data/jsonl/{args.category}_{modification}_{model}.jsonl"
 
     # read in vocabulary files
     vocab = pd.read_csv(VOC_FOLDER+"vocabulary.csv")
     vocab = vocab[vocab.Pilot_include != "No"]
     names_vocab = pd.read_csv(VOC_FOLDER+"vocabulary_proper_names.csv")
 
-    if args.category == "all":
-        for category in CATEGORIES:
-            data_path=DATA_FOLDER+"new_templates - %s.csv" % category
-            generate_data_for_category(category)
-    else:
-        if args.category not in CATEGORIES:
-            raise(f"{args.category}' is not a valid category.")
-        DATA_PATH=DATA_FOLDER+f"{args.category}_{modification}_{model}.csv" 
-        OUTPUT_PATH=f"./data/jsonl/eval_prompt_{modification}_{model}.jsonl"
-        generate_data_for_category(args.category, DATA_PATH, OUTPUT_PATH, vocab, names_vocab)
-        convert_to_prompt(OUTPUT_PATH)
+    generate_data_for_category(args.category, DATA_PATH, OUTPUT_PATH, vocab, names_vocab)
+    convert_to_prompt(OUTPUT_PATH)
