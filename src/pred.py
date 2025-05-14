@@ -65,7 +65,7 @@ if __name__ == "__main__":
     else:
         llm = LLMs(args.model, model_id, device)
         # inference
-        for jd in tqdm(jsonl_data[start_index:]):
+        for jd in tqdm(jsonl_data[start_index:], miniters=100):
             prompt = jd.get("prompt", "") # sometimes 'prompt' is missing, default to empty
             enum_choices = jd["enum_choices"]
             if p:
