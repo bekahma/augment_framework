@@ -156,12 +156,12 @@ if __name__ == "__main__":
     OUTPUT_FILE = DATA_FOLDER+f"{category}_{modification}_{model}.csv"
 
     #Loading API key
-    #load_dotenv()  # load environment variables from .env
-    #api_key = os.getenv("OPENAI_API_KEY")
+    load_dotenv()  # load environment variables from .env
+    api_key = os.getenv("OPENAI_API_KEY")
 
     #''' TODO: standardize the api key loading process
-    with open(os.path.expanduser(f"~/{model}_api.key"), "r") as f:
-        api_key=f.read().strip()
+    #with open(os.path.expanduser(f"~/{model}_api.key"), "r") as f:
+    #    api_key=f.read().strip()
     #'''
 
     # Loading the dataframes

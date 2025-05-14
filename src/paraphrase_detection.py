@@ -34,9 +34,11 @@ perplexity_model = AutoModelForCausalLM.from_pretrained(model_name)
 perplexity_tokenizer = AutoTokenizer.from_pretrained(model_name)
 
 #AAE classifier
+''' commenting this out for now 
 aae_model = DebertaV2ForSequenceClassification.from_pretrained("webis/acl2024-aae-dialect-classification", subfolder="model")
 aae_tokenizer = AutoTokenizer.from_pretrained("microsoft/deberta-v3-base")
 classifier = pipeline("text-classification", model=aae_model, tokenizer=aae_tokenizer)
+'''
 
 #UTILS FUNCTIONS
 def compute_rouge_l(reference, candidate):
@@ -255,7 +257,9 @@ def build_excel(paraphrase_df, output_path, modification):
     """
     #Columns per type of modification
     columns_per_modif={'AAE': ["label_ori", "label_par", "proba_ori", "proba_par"],
-            'prepositions': ['pos_added', 'pos_removed', 'wrong_added', "wrong_removed"]}
+            'prepositions': ['pos_added', 'pos_removed', 'wrong_added', "wrong_removed"],
+            'synonym_substitution': ['pos_added', 'pos_removed', 'wrong_added', "wrong_removed"],
+            'change_voice': ['pos_added', 'pos_removed', 'wrong_added', "wrong_removed"],}
     
     annotations_df=pd.DataFrame(columns=['idx', 'Q_id', "disambiguated", 'modification',  'original', 'raw_answer', 'nb_modif', 
                                          'wrong_modif', 'realism', 'meaning', #columns for human annotation
