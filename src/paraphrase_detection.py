@@ -259,19 +259,6 @@ def automatic_detection(original_context, paraphrase, modification, other_metric
             "label_par": pred_par["label"],
             "proba_par": pred_par["score"],
         })
-
-    elif modification=='verb_adjective':
-        #TODO finish?
-        pos_tags_to_check = {"VERB",  'ADJ', 'DET'} 
-        allowed_deps={}
-        added_pos_tags, removed_pos_tags, wrong_added, wrong_removed=detect_pos(doc_paraphrased, doc_original, added_tokens, removed_tokens, pos_tags_to_check, allowed_deps)
-
-        metrics.update({
-            'pos_added': added_pos_tags, 
-            'pos_removed':removed_pos_tags, 
-            'wrong_added': wrong_added, 
-            "wrong_removed": wrong_removed
-        })
     
     else:
         #TODO adapt to other modifications
