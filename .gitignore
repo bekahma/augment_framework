@@ -5,5 +5,6 @@ logs/
 run_inference.py
 .env
 .ipynb_checkpoints/
-data/
+data/jsonl/
+data/paraphrases/*/
 result/
