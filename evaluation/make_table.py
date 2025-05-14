@@ -5,14 +5,22 @@ import pandas as pd
 import argparse
 from pathlib import Path
 
-def make_table(summary_df):
-    #We first retrieve the model name from the file name
-    summary_df["model"] = summary_df["filename"].apply(lambda x: x.split("result_")[1].split("_")[0])
-    #Then we drop the columns of string
+def make_tables(summary_df):
+    # Extract model name from filename
+    summary_df["model"] = summary_df["filename"].apply(lambda x: x.split("/")[1])
     summary_df.drop(columns=["filename"], inplace=True) 
-    #Then we group by model and compute (max-min) for each column
-    agg_df=summary_df.groupby("model").agg(lambda x: x.max() - x.min())
-    return agg_df
+
+    # Table 3: Compute (max - min) per column
+    range_df = summary_df.groupby("model").agg(lambda x: x.max() - x.min())
+
+    # Table 13: Compute max and min separately for each column
+    max_df = summary_df.groupby("model").max().add_suffix("_max")
+    min_df = summary_df.groupby("model").min().add_suffix("_min")
+    cols = [col.replace("_max", "") for col in max_df.columns]
+    interleaved_cols = [col + suffix for col in cols for suffix in ["_max", "_min"]]  
+    min_max_df = pd.concat([max_df, min_df], axis=1)[interleaved_cols] 
+
+    return range_df, min_max_df
 
 
 if __name__ == "__main__":
@@ -21,7 +29,10 @@ if __name__ == "__main__":
     args = parser.parse_args()
     file_dir = Path(args.result_dir)
 
-    summary_df=pd.read_csv(file_dir / "summary" / "sum.csv")
-    agg_df=make_table(summary_df)
-    agg_df.to_csv(file_dir / "summary" / "table3.csv")
+    summary_df=pd.read_csv(file_dir / "summary" / "paraphrase_sum.csv")
+    range_df, min_max_df = make_tables(summary_df)
+
+    # Save both tables
+    range_df.to_csv(file_dir / "summary" / "table3.csv")
+    min_max_df.to_csv(file_dir / "summary" / "table13.csv")
 
