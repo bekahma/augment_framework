@@ -204,10 +204,13 @@ def automatic_detection(original_context, paraphrase, modification, other_metric
     # POS tagging in context
     doc_original = nlp(original_context)
     doc_paraphrased = nlp(paraphrase)
+
+    pos_tags_original=[token.pos_ for token in doc_original]
+    pos_tags_paraphrase= [token.pos_ for token in doc_paraphrased]
     
     # Run words comparison
     changes = compare_sentences(original_context, paraphrase)
-
+    
     # Create lookup sets for fast access
     added_tokens= set(changes["added"])
     removed_tokens = set(changes["removed"])
