@@ -39,14 +39,12 @@ perplexity_model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=
 perplexity_tokenizer = AutoTokenizer.from_pretrained(model_name)
 
 #AAE classifier
-'''
 aae_model = DebertaV2ForSequenceClassification.from_pretrained("webis/acl2024-aae-dialect-classification", subfolder="model")
 aae_tokenizer = AutoTokenizer.from_pretrained("microsoft/deberta-v3-base")
 aae_classifier = pipeline("text-classification", model=aae_model, tokenizer=aae_tokenizer)
-'''
 
 #Formal classifier
-#formal_classifier = pipeline("text-classification", model="LenDigLearn/formality-classifier-mdeberta-v3-base")
+formal_classifier = pipeline("text-classification", model="LenDigLearn/formality-classifier-mdeberta-v3-base")
 
 #Synonym cosine similarity model
 #syn_model = SentenceTransformer('all-MiniLM-L6-v2')
