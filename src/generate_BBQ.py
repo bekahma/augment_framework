@@ -2,6 +2,7 @@
 Adapted from https://github.com/nyu-mll/BBQ and https://github.com/rem-h4/llm_socialbias_prompts"""
 
 import pandas as pd
+import os
 import io
 import json
 import random
@@ -350,7 +351,9 @@ if __name__ == "__main__":
     else:
         DATA_FOLDER=f'./data/paraphrases/{modification}/'
         DATA_PATH=DATA_FOLDER+f"{args.category}_{modification}_{model}_filtered.csv" 
-        OUTPUT_PATH=f"./data/jsonl/{args.category}_{modification}_{model}.jsonl"
+        OUTPUT_FOLDER = f"./data/jsonl/{modification}/"
+        os.makedirs(OUTPUT_FOLDER, exist_ok=True) 
+        OUTPUT_PATH=OUTPUT_FOLDER+f"{args.category}_{modification}_{model}.jsonl"
 
     # read in vocabulary files
     vocab = pd.read_csv(VOC_FOLDER+"vocabulary.csv")

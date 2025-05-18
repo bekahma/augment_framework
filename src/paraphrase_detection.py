@@ -376,7 +376,7 @@ def filter_out(paraphrase_df, output_path, modification):
         List[int]: Indices of rows to keep after filtering.
     """
     nb_replaced, nb_untouched, nb_wrong=0, 0, 0 #counters for untouched sentences (no modifications) and wrong paraphrases
-    for _, row in tqdm(paraphrase_df.iterrows(), total=paraphrase_df.shape[0]): 
+    for idx, row in tqdm(paraphrase_df.iterrows(), total=paraphrase_df.shape[0]): 
         for _, disambiguated in enumerate([False, True]): 
             if disambiguated:
                 key="Disambiguating_Context"
@@ -490,9 +490,9 @@ def filter_out(paraphrase_df, output_path, modification):
                         raise ValueError(f"No automatic rules were set up for the {modification} modification")
             
             if len(paraphrases)>0: #at least one paraphrase is correct
-                row[key]=paraphrases[0] #we take the first one
+                paraphrase_df.loc[idx, key] = paraphrases[0] #we take the first one
             else: #all paraphrases were incorrect
-                row[key]=original_context #we keep original context
+                paraphrase_df.loc[idx, key]=original_context #we keep original context
                 nb_replaced+=1
 
     print(f"Number of replaced contexts out of {len(paraphrase_df)*2}:", nb_replaced) 
