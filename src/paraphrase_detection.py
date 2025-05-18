@@ -224,7 +224,7 @@ def automatic_detection(original_context, paraphrase, modification, other_metric
     
     # Run words comparison
     changes = compare_sentences(original_context, paraphrase)
-
+    
     # Create lookup sets for fast access
     added_tokens= set(changes["added"])
     removed_tokens = set(changes["removed"])
