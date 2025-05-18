@@ -12,7 +12,7 @@ import spacy
 from nltk.stem import PorterStemmer
 
 from bert_score import score
-from sentence_transformers import CrossEncoder
+from sentence_transformers import CrossEncoder, SentenceTransformer, util
 from rouge_score import rouge_scorer
 import pandas as pd
 from transformers import logging
@@ -45,6 +45,9 @@ aae_classifier = pipeline("text-classification", model=aae_model, tokenizer=aae_
 
 #Formal classifier
 formal_classifier = pipeline("text-classification", model="LenDigLearn/formality-classifier-mdeberta-v3-base")
+
+#Synonym cosine similarity model
+#syn_model = SentenceTransformer('all-MiniLM-L6-v2')
 
 #UTILS FUNCTIONS
 def compute_rouge_l(reference, candidate):
@@ -186,6 +189,17 @@ def detect_pos(doc_paraphrased, doc_original, added_tokens, removed_tokens, pos_
 
     return added_pos_tags, removed_pos_tags, wrong_added, wrong_removed
 
+def compute_cos_similarity(added_words, removed_words):
+    """
+    ...
+    """
+    added_embeddings = syn_model.encode(added_words, convert_to_tensor=True)
+    removed_embeddings = syn_model.encode(removed_words, convert_to_tensor=True)
+    
+    # Compute cosine similarity matrix
+    cosine_scores = util.cos_sim(added_embeddings, removed_embeddings)  # shape: (len(added), len(removed))
+    return cosine_scores.mean().item() # note: computing average
+
 def automatic_detection(original_context, paraphrase, modification, other_metrics=True):
     """
     Automatically analyzes differences between an original sentence and its paraphrase,
@@ -204,6 +218,9 @@ def automatic_detection(original_context, paraphrase, modification, other_metric
     # POS tagging in context
     doc_original = nlp(original_context)
     doc_paraphrased = nlp(paraphrase)
+
+    pos_original=[token.pos_ for token in doc_original if not token.is_stop and token.is_alpha]
+    pos_paraphrase= [token.pos_ for token in doc_paraphrased if not token.is_stop and token.is_alpha]
     
     # Run words comparison
     changes = compare_sentences(original_context, paraphrase)
@@ -260,6 +277,15 @@ def automatic_detection(original_context, paraphrase, modification, other_metric
             "proba_par": pred_par["score"],
         })
     
+    elif modification=='synonym_substitution':
+        #cos_score=compute_cos_similarity(added_words, removed_words)
+        matcher = difflib.SequenceMatcher(None, pos_original, pos_paraphrase)
+        seq_ratio = matcher.ratio()
+        
+        metrics.update({
+            "seq_ratio": seq_ratio
+        })
+    
     else:
         #TODO adapt to other modifications
         wrong_added = []
@@ -295,6 +321,7 @@ def build_excel(paraphrase_df, output_path, modification):
     columns_per_modif={'AAE': ["label_ori", "label_par", "proba_ori", "proba_par"],
                        'formal': ["label_ori", "label_par", "proba_ori", "proba_par"],
             'prepositions': ['pos_added', 'pos_removed', 'wrong_added', "wrong_removed"]}
+    # TODO: add synonym, change of voice
     
     annotations_df=pd.DataFrame(columns=['idx', 'Q_id', "disambiguated", 'modification',  'original', 'raw_answer', 'nb_modif', 
                                          'wrong_modif', 'realism', 'meaning', #columns for human annotation
@@ -368,6 +395,7 @@ def filter_out(paraphrase_df, output_path, modification):
                 nb_modifs=metrics_dict['nb_modif']
                 perplexity_ratio = metrics_dict["perplexity_ratio"]
                 sbert_score = metrics_dict["sbert_score"]
+                bert_score = metrics_dict["bert_score"]
 
                 if nb_modifs==0: 
                     #remove paraphrase if no modification was applied
@@ -439,6 +467,24 @@ def filter_out(paraphrase_df, output_path, modification):
                         if not keep or perplexity_ratio >= 2 or sbert_score <= 0.75:
                             paraphrases.remove(paraphrase)
                             nb_wrong += 1
+                    
+                    elif modification == 'synonym_substitution':
+                        keep = False
+
+                        seq_ratio = metrics_dict["seq_ratio"]
+                        if seq_ratio > 0.80 and perplexity_ratio < 2.5 and sbert_score > 0.85:
+                            keep = True
+                        else:
+                            nb_wrong+=1
+                    
+                    elif modification == 'change_voice':
+                        keep = False
+
+                        if perplexity_ratio < 1.8 and bert_score > 0.93 and sbert_score > 0.90:
+                            keep = True
+                        else:
+                            nb_wrong+=1
+
                     else:
                         #TODO adapt to other modifications
                         raise ValueError(f"No automatic rules were set up for the {modification} modification")
