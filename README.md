@@ -1,5 +1,5 @@
 # Say It Another Way: Auditing LLMs with a User-Grounded Automated Paraphrasing Framework
-This repository contains the code for social bias evaluation for LLMs using paraphrasing of the prompts.
+This repository contains code for evaluating social bias in large language models (LLMs) through prompt paraphrasing.
 The dataset is [BBQ dataset](https://github.com/nyu-mll/BBQ).
 
 ## Paraphrase
