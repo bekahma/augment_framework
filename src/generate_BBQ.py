@@ -351,7 +351,7 @@ if __name__ == "__main__":
     else:
         DATA_FOLDER=f'./data/paraphrases/{modification}/'
         DATA_PATH=DATA_FOLDER+f"{args.category}_{modification}_{model}_filtered.csv" 
-        OUTPUT_FOLDER = f"./data/jsonl/{modification}/"
+        OUTPUT_FOLDER = f"./data/jsonl/{modification}_{model}/"
         os.makedirs(OUTPUT_FOLDER, exist_ok=True) 
         OUTPUT_PATH=OUTPUT_FOLDER+f"{args.category}_{modification}_{model}.jsonl"
 
