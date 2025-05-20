@@ -33,16 +33,7 @@ You can run the inference with each LLM.
 - debias_prompt: debias_prompt key. See the above description. When evaluating without debias-prompts, drop this arg. 
 
 ## Evaluation
-Before running the evaluation, you need to realign the answers because some paraphrased questions may have been filtered out due to quality issues. To do this, run the script
-```python3 src/post_process.py --result_dir <result_folder>```
-
-You can then calculate task performance and social bias of LLMs.
-```python3 evaluation/eval_bbq.py --result_dir <result_folder>```
-
-To compare answer distribution, run
-```python3 evaluation/eval_entropy.py --result_dir <result_folder>```
-
-The results can be analyzed in the notebook "notebooks/annotation_analysis.ipynb".
+The results can be analyzed in the notebook "notebooks/bbq_metrics.ipynb".
 
 
 
