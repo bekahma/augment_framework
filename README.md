@@ -1,4 +1,4 @@
-# Social Bias Evaluation for Large Language Models Requires Prompt Variations
+# Say It Another Way: Auditing LLMs with a User-Grounded Automated Paraphrasing Framework
 This repository contains the code for social bias evaluation for LLMs using paraphrasing of the prompts.
 The dataset is [BBQ dataset](https://github.com/nyu-mll/BBQ).
 
