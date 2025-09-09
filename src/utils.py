@@ -156,6 +156,7 @@ def make_dict(
     question,
     ans_list,
     ans_place,
+    target_place
 ):
     """
     Formats information into a standardized dict that can be saved to jsonl
@@ -198,6 +199,7 @@ def make_dict(
         "ans1": ans_list[1],
         "ans2": ans_list[2],
         "label": ans_place,
+        "target_label": target_place,
     }
     return this_dict
 
@@ -325,6 +327,7 @@ def create_templating_dicts(
         q_neg,
         ans_list,
         ans_unknown_place,
+        ans_non_neg_place
     )
     nn += 1
     dict2 = make_dict(
@@ -343,6 +346,7 @@ def create_templating_dicts(
         q_neg,
         ans_list,
         ans_neg_place,
+        ans_non_neg_place,
     )
     nn += 1
     dict3 = make_dict(
@@ -360,6 +364,7 @@ def create_templating_dicts(
         q_non_neg,
         ans_list,
         ans_unknown_place,
+        ans_non_neg_place
     )
     nn += 1
     dict4 = make_dict(
@@ -378,6 +383,7 @@ def create_templating_dicts(
         q_non_neg,
         ans_list,
         ans_non_neg_place,
+        ans_non_neg_place
     )
 
     return [dict1, dict2, dict3, dict4]
