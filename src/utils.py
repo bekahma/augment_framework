@@ -1,4 +1,5 @@
 import torch
+from tqdm import tqdm
 import numpy as np
 import pandas as pd
 import random
@@ -387,3 +388,40 @@ def create_templating_dicts(
     )
 
     return [dict1, dict2, dict3, dict4]
+
+def choose_vocabulary(bbq_templates):
+    """
+    This function choose vocabulary words in the BBQ templates.
+    Should be performed only once on each stereotypical category before paraphrasing, so that all original templates have the same lexical diversity.
+    """
+
+    original_df=bbq_templates.copy()
+
+    #Iterating through BBQ templates
+    for idx, row in tqdm(bbq_templates.iterrows(), total=bbq_templates.shape[0]):
+        #some templates have lexical diversity, we just pick one word randomly as in the BBQ construction
+        lex_div = row['Lexical_diversity']
+        if pd.notna(lex_div):
+            wrdlist1, wrdlist2 = return_list_from_string(lex_div)
+            rand_wrd1 = random.choice(wrdlist1)
+            rand_wrd2 = random.choice(wrdlist2) if len(wrdlist2) > 1 else None
+        else:
+            rand_wrd1 = rand_wrd2 = None
+
+        for _, disambiguated in enumerate([False, True]): #for each row, paraphrase ambiguous context alone or ambiguous+disambiguated
+            original_context=row["Ambiguous_Context"]
+            if disambiguated:
+                original_context+=' '+row["Disambiguating_Context"]
+
+            #some templates have lexical diversity, we just pick one word randomly and remove the placeholders {{WORD1}} and {{WORD2}}
+            if rand_wrd1 is not None:
+                original_context = original_context.replace("{{WORD1}}", rand_wrd1)
+            if rand_wrd2 is not None:
+                original_context = original_context.replace("{{WORD2}}", rand_wrd2)
+
+            if disambiguated:
+                original_df.loc[idx, "Disambiguating_Context"]=original_context
+            else:
+                original_df.loc[idx, "Ambiguous_Context"]=original_context
+    
+    return original_df

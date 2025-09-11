@@ -1,4 +1,4 @@
-"""This script is for the generation of paraphrases."""
+"""This script is for the generation of paraphrases, for any dataset."""
 
 import os
 import re
@@ -10,49 +10,11 @@ import random
 from utils import return_list_from_string
 from transformers import pipeline, AutoTokenizer, AutoModelForCausalLM
 import torch
-from dotenv import load_dotenv # for loading API key
-
-def choose_vocabulary(bbq_templates):
-    """
-    This function choose vocabulary words in the BBQ templates.
-    Should be performed only once on each stereotypical category before paraphrasing, so that all original templates have the same lexical diversity.
-    """
-
-    original_df=bbq_templates.copy()
-
-    #Iterating through BBQ templates
-    for idx, row in tqdm(bbq_templates.iterrows(), total=bbq_templates.shape[0]):
-        #some templates have lexical diversity, we just pick one word randomly as in the BBQ construction
-        lex_div = row['Lexical_diversity']
-        if pd.notna(lex_div):
-            wrdlist1, wrdlist2 = return_list_from_string(lex_div)
-            rand_wrd1 = random.choice(wrdlist1)
-            rand_wrd2 = random.choice(wrdlist2) if len(wrdlist2) > 1 else None
-        else:
-            rand_wrd1 = rand_wrd2 = None
-
-        for _, disambiguated in enumerate([False, True]): #for each row, paraphrase ambiguous context alone or ambiguous+disambiguated
-            original_context=row["Ambiguous_Context"]
-            if disambiguated:
-                original_context+=' '+row["Disambiguating_Context"]
-
-            #some templates have lexical diversity, we just pick one word randomly and remove the placeholders {{WORD1}} and {{WORD2}}
-            if rand_wrd1 is not None:
-                original_context = original_context.replace("{{WORD1}}", rand_wrd1)
-            if rand_wrd2 is not None:
-                original_context = original_context.replace("{{WORD2}}", rand_wrd2)
-
-            if disambiguated:
-                original_df.loc[idx, "Disambiguating_Context"]=original_context
-            else:
-                original_df.loc[idx, "Ambiguous_Context"]=original_context
-    
-    return original_df
+from datasets import load_dataset
 
 def get_openai_client(model_name):
     """
     Returns an OpenAI client and model name based on the specified backend.
-
     Args:
         model_name (str): The name of the model backend to use ("deepseek" or "chatgpt").
 
@@ -120,7 +82,6 @@ def extract_paraphrase_line(text):
             if list_match:
                 candidate = list_match.group(1).strip()
                 if len(candidate) >= 5:
-
                     paraphrases.append(candidate)
         
         i += 1
@@ -129,105 +90,158 @@ def extract_paraphrase_line(text):
         print(text)
     return paraphrases
 
-def paraphrase(para_modif, instructions_df, bbq_templates, use_model="deepseek", temperature=0):
+def paraphrasing(prompt_template, data_list, use_model="deepseek", temperature=0):
     """
-    This function performs paraphrase on the whole Gender identity subset contexts
+    Generate paraphrases for a list of input sentences using a specified model.
 
     Args:
-        para_modif (str): the type of paraphrase modification required
+        prompt_template (str): A template string for prompts.
+        data_list (list[str]): List of sentences to paraphrase.
+        use_model (str, optional): Which model to use. Options: "mistral", "deepseek" or "chatgpt".
+        temperature (float, optional): Sampling temperature for model generation. Defaults to 0 (deterministic output).
 
     Returns:
-        pd.DataFrame
+        list[str]: A list of paraphrased sentences corresponding to `data_list`.
+    """
+    #Initialize output list
+    paraphrased_data=[]
+
+    # Load paraphrasing model
+    if use_model == "mistral":
+        tokenizer, model = load_mistral_model()
+    else:
+        client, model_name = get_openai_client(use_model)
+
+    #Iterating through the list
+    for i, sent in tqdm(enumerate(data_list), total=len(data_list)):
+        prompt=prompt_template.format(sent) #replace the placeholder {} in the prompt template with the original sentence
+        try:
+            if use_model == "mistral":
+                response_text = generate_with_mistral(prompt, tokenizer, model)
+            else:
+                #Call the API for the prompt
+                response = client.chat.completions.create(
+                    model= model_name,
+                    messages=[
+                        {"role": "system", "content": "You are a helpful assistant"},
+                        {"role": "user", "content": prompt}], 
+                        temperature=temperature,# top_p=1, #we can play with these parameters for more/less diversity
+                        stream=False)
+                response_text = response.choices[0].message.content
+        
+        except Exception as e:
+            print(f"Failed to generate for sentence n°{i}")
+            raise e
+        
+        paraphrases = extract_paraphrase_line(response_text)
+        paraphrased_data.append(paraphrases)
+    
+    return paraphrased_data
+
+def paraphrasing_df(data, dataset, para_modif, instructions_df, use_model="deepseek"):
+    """
+    Apply paraphrasing to a dataset DataFrame based on a paraphrase modification type.
+
+    Args:
+        data (pd.DataFrame): Input dataset containing text columns to paraphrase.
+        dataset (str): Dataset name (currently supports 'BBQ').
+        para_modif (str): The type of paraphrase modification. 
+        instructions_df (pd.DataFrame): DataFrame containing prompt templates for each modification type.
+        use_model (str, optional): Model name to use. Defaults to "deepseek".
+
+    Returns:
+        pd.DataFrame: A copy of the input DataFrame with new paraphrased columns added.
     """
 
-    # Loading the correct prompt template
+    #Loading the correct prompt template
     prompt_template=instructions_df.loc[instructions_df.modification==para_modif, "prompt"].values[0] 
     print(prompt_template) #to check if the correct template is being used
 
     # Output DataFrame
-    paraphrase_df=bbq_templates.copy()
+    paraphrase_df=data.copy()
 
-    # Initialize empty columns for storing the paraphrases
-    paraphrase_df["Ambiguous_Paraphrases"] = None
-    paraphrase_df["Disambiguating_Paraphrases"] = None
-
-    if use_model == "mistral":
-        tokenizer, model = load_mistral_model()
-    else:
-        # Load model client and model name
-        client, model_name = get_openai_client(use_model)
-
-    #Iterating through BBQ templates
-    for idx, row in tqdm(bbq_templates.iterrows(), total=bbq_templates.shape[0]):
-        for _, disambiguated in enumerate([False, True]): #for each row, paraphrase ambiguous context alone or ambiguous+disambiguated
-            original_context = row["Disambiguating_Context"] if disambiguated else row["Ambiguous_Context"]
-
-            prompt=prompt_template.format(original_context) #replace the placeholder {} in the prompt template with the context
-            try:
-                if use_model == "mistral":
-                    response_text = generate_with_mistral(prompt, tokenizer, model)
-                else:
-                    #Call the API for the prompt
-                    response = client.chat.completions.create(
-                        model= model_name,
-                        messages=[
-                            {"role": "system", "content": "You are a helpful assistant"},
-                            {"role": "user", "content": prompt}], 
-                            temperature=temperature,# top_p=1, #we can play with these parameters for more/less diversity
-                            stream=False)
-                    response_text = response.choices[0].message.content
-            
-            except Exception as e:
-                print(f"Failed to generate for row {idx}, disambiguated {disambiguated}")
-                raise e
-            
-            paraphrases = extract_paraphrase_line(response_text)
-            
-            if disambiguated:
-                paraphrase_df.at[idx, "Disambiguating_Paraphrases"] = paraphrases
-            else:
-                paraphrase_df.at[idx, "Ambiguous_Paraphrases"] = paraphrases
-
-    return paraphrase_df
+    if dataset=='BBQ':
+        amb_ctxt=data.Ambiguous_Context.to_list()
+        disamb_ctxt=data.Disambiguating_Context.to_list()
+        amb_ctxt_paraphrased=paraphrasing(prompt_template, amb_ctxt, use_model)
+        disamb_ctxt_paraphrased=paraphrasing(prompt_template, disamb_ctxt, use_model)
+        paraphrase_df["Disambiguating_Paraphrases"] = disamb_ctxt_paraphrased
+        paraphrase_df["Ambiguous_Paraphrases"] = amb_ctxt_paraphrased
+        return paraphrase_df
+    
+    elif dataset=="HatEval":
+        txt_list=data.text.to_list()
+        paraphrased_txt=paraphrasing(prompt_template, txt_list, use_model)
+        paraphrase_df["paraphrases"] = paraphrased_txt
+        return paraphrase_df
+    
+    elif dataset=="MMLU":
+        question_list=data.question.to_list() #paraphrasing only the question, not the choices
+        paraphrased_txt=paraphrasing(prompt_template, question_list, use_model)
+        paraphrase_df["question_paraphrases"] = paraphrased_txt
+        return paraphrase_df
 
 if __name__ == "__main__":
     # Parse command-line arguments
     parser = argparse.ArgumentParser(description="Paraphrase BBQ templates using LLMs.")
     parser.add_argument("--model", choices=["deepseek", "chatgpt", "mistral"], default="deepseek",
-                        help="Choose the LLM backend to use: 'deepseek' or 'chatgpt'. Default is 'deepseek'.")
+                        help="Choose the paraphrasing LLM: 'deepseek' or 'chatgpt'. Default is 'deepseek'.")
     parser.add_argument('--modification', type=str, default='prepositions',
                         help="Type of modification to apply (e.g., 'prepositions')")
+    
+    parser.add_argument(
+        "--dataset",
+        choices=["BBQ", "HatEval", "MMLU"],
+        type=str,
+        default="BBQ",
+        help="Specify the dataset to paraphrase."
+    )
     
     parser.add_argument(
         "--category",
         type=str,
         default="Gender_identity",
-        help="Specify a single category to paraphrase (e.g., 'Race_ethnicity')."
+        help="Specify a single category to paraphrase (e.g., 'Race_ethnicity' for BBQ or 'philosophy' for MMLU)."
     )
     
     args = parser.parse_args()
     model = args.model
     modification = args.modification
+    dataset = args.dataset
     category=args.category
 
-    print(f"Paraphrasing for modification {modification} with model {model} for subset {category}")
+    print(f"Paraphrasing the dataset {dataset} with modification {modification} with model {model} for subset {category}")
 
     #Paths
-    DATA_FOLDER='./data/paraphrases/'
-    TEMPLATE_FILE = DATA_FOLDER+f"{category}_original.csv"
-    INSTRUCTION_FILE = DATA_FOLDER+"paraphrase_instructions.tsv"
-
+    INSTRUCTION_FILE = "./data/paraphrase_instructions.tsv"
+    DATA_FOLDER=f'./data/{dataset}/paraphrases/'
+    
     #Output path
-    OUTPUT_FOLDER = f'./data/paraphrases/{modification}/'
+    OUTPUT_FOLDER = f'./data/{dataset}/paraphrases/{modification}/'
     os.makedirs(OUTPUT_FOLDER, exist_ok=True)
-    OUTPUT_FILE = OUTPUT_FOLDER+f"{category}_{modification}_{model}.csv"
 
     # Loading the dataframes
     instructions_df=pd.read_csv(INSTRUCTION_FILE, sep='\t')
-    bbq_templates=pd.read_csv(TEMPLATE_FILE)
+
+    if dataset=="BBQ":
+        TEMPLATE_FILE = DATA_FOLDER+f"{category}_original.csv"
+        OUTPUT_FILE = OUTPUT_FOLDER+f"{category}_{modification}_{model}.csv"
+        data=pd.read_csv(TEMPLATE_FILE)
+
+    elif dataset=="HatEval":
+        OUTPUT_FILE = OUTPUT_FOLDER+f"{modification}_{model}.csv"
+        data_raw = load_dataset("valeriobasile/HatEval")
+        data=data_raw["test"].to_pandas()
+        data=data.iloc[:30, :] #experimenting with only a small subset
+    
+    elif dataset=="MMLU":
+        OUTPUT_FILE = OUTPUT_FOLDER+f"{category}_{modification}_{model}.csv"
+        data_raw = load_dataset("cais/mmlu", category, split='test') 
+        data=data_raw.to_pandas()
+        data=data.iloc[:30, :] #experimenting with only a small subset #TODO get rid of this line later
 
     #Paraphrasing
-    paraphrase_df=paraphrase(modification, instructions_df, bbq_templates, model)
+    paraphrase_df=paraphrasing_df(data, dataset, modification, instructions_df, model)
 
     #Saving output
     paraphrase_df.to_csv(OUTPUT_FILE, index=False)
