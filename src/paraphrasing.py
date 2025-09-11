@@ -144,7 +144,7 @@ def paraphrasing_df(data, dataset, para_modif, instructions_df, use_model="deeps
 
     Args:
         data (pd.DataFrame): Input dataset containing text columns to paraphrase.
-        dataset (str): Dataset name (currently supports 'BBQ').
+        dataset (str): Dataset name ('BBQ', 'MMLU', etc).
         para_modif (str): The type of paraphrase modification. 
         instructions_df (pd.DataFrame): DataFrame containing prompt templates for each modification type.
         use_model (str, optional): Model name to use. Defaults to "deepseek".
@@ -178,7 +178,7 @@ def paraphrasing_df(data, dataset, para_modif, instructions_df, use_model="deeps
     elif dataset=="MMLU":
         question_list=data.question.to_list() #paraphrasing only the question, not the choices
         paraphrased_txt=paraphrasing(prompt_template, question_list, use_model)
-        paraphrase_df["question_paraphrases"] = paraphrased_txt
+        paraphrase_df["paraphrases"] = paraphrased_txt
         return paraphrase_df
 
 if __name__ == "__main__":
@@ -200,7 +200,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--category",
         type=str,
-        default="Gender_identity",
+        default="None",
         help="Specify a single category to paraphrase (e.g., 'Race_ethnicity' for BBQ or 'philosophy' for MMLU)."
     )
     
@@ -218,6 +218,7 @@ if __name__ == "__main__":
     
     #Output path
     OUTPUT_FOLDER = f'./data/{dataset}/paraphrases/{modification}/'
+    OUTPUT_FILE = OUTPUT_FOLDER+f"{category}_{modification}_{model}.csv"
     os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
     # Loading the dataframes
@@ -225,17 +226,14 @@ if __name__ == "__main__":
 
     if dataset=="BBQ":
         TEMPLATE_FILE = DATA_FOLDER+f"{category}_original.csv"
-        OUTPUT_FILE = OUTPUT_FOLDER+f"{category}_{modification}_{model}.csv"
         data=pd.read_csv(TEMPLATE_FILE)
 
     elif dataset=="HatEval":
-        OUTPUT_FILE = OUTPUT_FOLDER+f"{modification}_{model}.csv"
         data_raw = load_dataset("valeriobasile/HatEval")
         data=data_raw["test"].to_pandas()
         data=data.iloc[:30, :] #experimenting with only a small subset
     
     elif dataset=="MMLU":
-        OUTPUT_FILE = OUTPUT_FOLDER+f"{category}_{modification}_{model}.csv"
         data_raw = load_dataset("cais/mmlu", category, split='test') 
         data=data_raw.to_pandas()
         data=data.iloc[:30, :] #experimenting with only a small subset #TODO get rid of this line later
