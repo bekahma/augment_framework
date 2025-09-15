@@ -555,7 +555,8 @@ def filter_out(paraphrase_df, output_path, modification, dataset):
                 paraphrase_df.loc[idx, "question"]=original_text #we keep original text
                 nb_replaced+=1
 
-    print(f"Number of replaced contexts out of {len(paraphrase_df)*2}:", nb_replaced) 
+    total = len(paraphrase_df) * 2 if dataset == "BBQ" else len(paraphrase_df)
+    print(f"Number of replaced contexts out of {total}:", nb_replaced) 
     print("Number of untouched paraphrases:", nb_untouched) 
     print("Number of wrong paraphrases:", nb_wrong) 
     paraphrase_df.to_csv(output_path, index=False)
@@ -564,7 +565,7 @@ def filter_out(paraphrase_df, output_path, modification, dataset):
 
 if __name__ == "__main__":
 
-    parser = argparse.ArgumentParser(description="Script configuration")
+    parser = argparse.ArgumentParser()
 
     parser.add_argument('--modification', type=str, default='prepositions',
                         help="Type of modification to apply (e.g., 'prepositions')")

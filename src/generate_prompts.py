@@ -1,5 +1,6 @@
-"""This script is to generate the whole BBQ dataset, once contexts have been rephrased and filtered. 
-Adapted from https://github.com/nyu-mll/BBQ and https://github.com/rem-h4/llm_socialbias_prompts"""
+"""This script is to generate the final prompts that will be fed to the target models.
+For the BBQ dataset, adapted from https://github.com/nyu-mll/BBQ and https://github.com/rem-h4/llm_socialbias_prompts
+For the MMLU dataset, adapted from https://github.com/hendrycks/test/tree/master"""
 
 import pandas as pd
 import os
@@ -324,8 +325,71 @@ def convert_to_prompt(output_path):
             for jd in jsonl_data:
                 f.write(json.dumps(jd) + "\n")
 
+def parse_choices(choices_str):
+    # Remove brackets
+    s = choices_str.strip("[]")
+    # Split on quotes + space pattern
+    parts = [p.strip("'\" ") for p in s.split("' '") if p.strip()]
+    return parts
+
+def format_example(row, include_answer=False, choices=["A", "B", "C", "D"]):
+    """
+    Format a multiple-choice question from a row into a text prompt.
+
+    Args:
+        row (pd.Series): Row containing question, options, and optionally the answer.
+        include_answer (bool): If True, append the correct answer at the end.
+        choices (list): Labels for the answer options.
+
+    Returns:
+        str: Formatted question prompt.
+    """
+    prompt = row["question"]
+
+    if isinstance(row["choices"], str):
+        options = parse_choices(row["choices"])
+    else:
+        options = list(row["choices"])
+
+    for j, choice in enumerate(options):
+        prompt += f"\n{choices[j]}. {choice}"
+
+    prompt += "\nAnswer:"
+    if include_answer:
+        prompt += f" {row.answer}\n\n"
+    return prompt
+
+
+def process_MMLU(df, output_file, include_answer=False):
+    """
+    Convert an MMLU DataFrame into a JSONL file with prompts and choices.
+
+    Args:
+        df (pd.DataFrame): DataFrame containing MMLU questions.
+        output_file (str): Path to the JSONL file to save results.
+        include_answer (bool): If True, include the correct answer in the prompt.
+    """
+    with open(output_file, "w") as f:
+        for _, row in df.iterrows():
+            question = {
+                "prompt": format_example(row, include_answer=include_answer),
+                "enum_choices": ["A", "B", "C", "D"],
+                "label":row.answer
+            }
+            f.write(json.dumps(question) + "\n")
+            
+    print(f"Output file generated: {output_file}")
+
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Generate BBQ dataset for bias evaluation.")
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--dataset",
+        choices=["BBQ", "HatEval", "MMLU"],
+        type=str,
+        default="BBQ",
+        help="Specify the dataset used."
+    )
+
     parser.add_argument(
         "--category",
         type=str,
@@ -343,22 +407,30 @@ if __name__ == "__main__":
     #Paths
     modification = args.modification
     model = args.model
-    VOC_FOLDER='./data/BBQ_templates/'
+    dataset=args.dataset
     if modification=="original":
-        DATA_FOLDER=f'./data/paraphrases/'
+        DATA_FOLDER=f'./data/{dataset}/paraphrases/'
         DATA_PATH=DATA_FOLDER+f"{args.category}_original.csv" 
-        OUTPUT_PATH=f"./data/jsonl/{args.category}_original_None.jsonl"
+        OUTPUT_FOLDER = f"./data/{dataset}/jsonl/original_None/"
+        os.makedirs(OUTPUT_FOLDER, exist_ok=True) 
+        OUTPUT_PATH=f"./data/{dataset}/jsonl/original_None/{args.category}_original_None.jsonl"
     else:
-        DATA_FOLDER=f'./data/paraphrases/{modification}/'
+        DATA_FOLDER=f'./data/{dataset}/paraphrases/{modification}/'
         DATA_PATH=DATA_FOLDER+f"{args.category}_{modification}_{model}_filtered.csv" 
-        OUTPUT_FOLDER = f"./data/jsonl/{modification}_{model}/"
+        OUTPUT_FOLDER = f"./data/{dataset}/jsonl/{modification}_{model}/"
         os.makedirs(OUTPUT_FOLDER, exist_ok=True) 
         OUTPUT_PATH=OUTPUT_FOLDER+f"{args.category}_{modification}_{model}.jsonl"
 
-    # read in vocabulary files
-    vocab = pd.read_csv(VOC_FOLDER+"vocabulary.csv")
-    vocab = vocab[vocab.Pilot_include != "No"]
-    names_vocab = pd.read_csv(VOC_FOLDER+"vocabulary_proper_names.csv")
+    if dataset=='BBQ':
+        VOC_FOLDER='./data/BBQ/BBQ_templates/'
+        # read in vocabulary files
+        vocab = pd.read_csv(VOC_FOLDER+"vocabulary.csv")
+        vocab = vocab[vocab.Pilot_include != "No"]
+        names_vocab = pd.read_csv(VOC_FOLDER+"vocabulary_proper_names.csv")
 
-    generate_data_for_category(args.category, DATA_PATH, OUTPUT_PATH, vocab, names_vocab)
-    convert_to_prompt(OUTPUT_PATH)
+        generate_data_for_category(args.category, DATA_PATH, OUTPUT_PATH, vocab, names_vocab)
+        convert_to_prompt(OUTPUT_PATH)
+
+    elif dataset=='MMLU':
+        mmlu_df=pd.read_csv(DATA_PATH)
+        process_MMLU(mmlu_df, OUTPUT_PATH)

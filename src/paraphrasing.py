@@ -183,7 +183,8 @@ def paraphrasing_df(data, dataset, para_modif, instructions_df, use_model="deeps
 
 if __name__ == "__main__":
     # Parse command-line arguments
-    parser = argparse.ArgumentParser(description="Paraphrase BBQ templates using LLMs.")
+    parser = argparse.ArgumentParser(description="Paraphrase a specified dataset using LLMs.")
+
     parser.add_argument("--model", choices=["deepseek", "chatgpt", "mistral"], default="deepseek",
                         help="Choose the paraphrasing LLM: 'deepseek' or 'chatgpt'. Default is 'deepseek'.")
     parser.add_argument('--modification', type=str, default='prepositions',
@@ -227,6 +228,7 @@ if __name__ == "__main__":
     if dataset=="BBQ":
         TEMPLATE_FILE = DATA_FOLDER+f"{category}_original.csv"
         data=pd.read_csv(TEMPLATE_FILE)
+        data=data.iloc[:5, :] #experimenting with only a small subset #TODO get rid of this line later
 
     elif dataset=="HatEval":
         data_raw = load_dataset("valeriobasile/HatEval")
@@ -234,9 +236,14 @@ if __name__ == "__main__":
         data=data.iloc[:30, :] #experimenting with only a small subset
     
     elif dataset=="MMLU":
-        data_raw = load_dataset("cais/mmlu", category, split='test') 
-        data=data_raw.to_pandas()
-        data=data.iloc[:30, :] #experimenting with only a small subset #TODO get rid of this line later
+        TEMPLATE_FILE = DATA_FOLDER+f"{category}_original.csv"
+        if not os.path.isfile(TEMPLATE_FILE): #if the dataset was not loaded previously
+            data_raw = load_dataset("cais/mmlu", category, split='test') 
+            data=data_raw.to_pandas()
+            data=data.iloc[:10, :] #experimenting with only a small subset #TODO get rid of this line later
+            data.to_csv(TEMPLATE_FILE, index=False) #saving the original dataset
+        else:
+            data=pd.read_csv(TEMPLATE_FILE)
 
     #Paraphrasing
     paraphrase_df=paraphrasing_df(data, dataset, modification, instructions_df, model)
