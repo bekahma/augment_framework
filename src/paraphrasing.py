@@ -228,7 +228,6 @@ if __name__ == "__main__":
     if dataset=="BBQ":
         TEMPLATE_FILE = DATA_FOLDER+f"{category}_original.csv"
         data=pd.read_csv(TEMPLATE_FILE)
-        data=data.iloc[:5, :] #experimenting with only a small subset #TODO get rid of this line later
 
     elif dataset=="HatEval":
         data_raw = load_dataset("valeriobasile/HatEval")
@@ -240,7 +239,6 @@ if __name__ == "__main__":
         if not os.path.isfile(TEMPLATE_FILE): #if the dataset was not loaded previously
             data_raw = load_dataset("cais/mmlu", category, split='test') 
             data=data_raw.to_pandas()
-            data=data.iloc[:10, :] #experimenting with only a small subset #TODO get rid of this line later
             data.to_csv(TEMPLATE_FILE, index=False) #saving the original dataset
         else:
             data=pd.read_csv(TEMPLATE_FILE)
