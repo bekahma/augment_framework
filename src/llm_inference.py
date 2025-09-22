@@ -27,7 +27,7 @@ if __name__ == "__main__":
     parser.add_argument("--is_chatmodel", action="store_true")
     parser.add_argument(
         "--dataset",
-        choices=["BBQ", "HatEval", "MMLU"],
+        choices=["BBQ", "MMLU"],
         type=str,
         default="BBQ",
         help="Specify the dataset used."

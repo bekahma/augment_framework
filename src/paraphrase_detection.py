@@ -596,7 +596,7 @@ def filter_out(paraphrase_df, output_path, modification, dataset):
     paraphrase_df.to_csv(output_path, index=False)
     print("Filtered dataframe saved to", output_path)
 
-def classify_data(paraphrase_df, output_data_path, output_classification_path, dataset):
+def classify_data(paraphrase_df, output_data_path, output_classification_path, dataset, export=True, classify=True):
     """
     Classify paraphrases from a paraphrase DataFrame based on modification-specific heuristics.
 
@@ -609,6 +609,7 @@ def classify_data(paraphrase_df, output_data_path, output_classification_path, d
         List[int]: Indices of rows to keep after filtering.
     """
     classification_rows = []
+    expanded_rows = []
     for idx, row in tqdm(paraphrase_df.iterrows(), total=paraphrase_df.shape[0]): 
         if dataset == "BBQ":
             for _, disambiguated in enumerate([False, True]): 
@@ -623,10 +624,14 @@ def classify_data(paraphrase_df, output_data_path, output_classification_path, d
                 
                 assert isinstance(paraphrases, list)
 
-                classifications=classify_paraphrases(original_text, paraphrases)
-                classification_rows.append(classifications)
-            
-                paraphrase_df.loc[idx, key] = random.choice(paraphrases)
+                if classify:
+                    classifications=classify_paraphrases(original_text, paraphrases)
+                    classification_rows.append(classifications)
+
+                for p in paraphrases:
+                    new_row = row.copy()
+                    new_row[key] = p
+                    expanded_rows.append(new_row)
 
         elif dataset == "MMLU":
             original_text=row["question"]
@@ -634,13 +639,22 @@ def classify_data(paraphrase_df, output_data_path, output_classification_path, d
 
             assert isinstance(paraphrases, list)
 
-            classifications=classify_paraphrases(original_text, paraphrases)
-            classification_rows.append(classifications)
-            paraphrase_df.loc[idx, "question"] = random.choice(paraphrases)
+            if classify:
+                classifications=classify_paraphrases(original_text, paraphrases)
+                classification_rows.append(classifications)
+
+            for p in paraphrases:
+                new_row = row.copy()
+                new_row["question"] = p
+                expanded_rows.append(new_row)
     
-    classification_df = pd.DataFrame(classification_rows)
-    classification_df.to_csv(output_classification_path, index=False)
-    paraphrase_df.to_csv(output_data_path, index=False)
+    if classify:
+        classification_df = pd.DataFrame(classification_rows)
+        classification_df.to_csv(output_classification_path, index=False)
+    if export:
+        # save expanded paraphrase dataset
+        expanded_df = pd.DataFrame(expanded_rows)
+        expanded_df.to_csv(output_data_path, index=False)
         
 
 if __name__ == "__main__":
@@ -698,7 +712,7 @@ if __name__ == "__main__":
         paraphrase_df["paraphrases"]=paraphrase_df["paraphrases"].apply(ast.literal_eval)
     
     if modification=='random':
-        classify_data(paraphrase_df, OUTPUT_FILTERED_FILE, OUTPUT_CLASSIFICATION_FILE, dataset)
+        classify_data(paraphrase_df, OUTPUT_FILTERED_FILE, OUTPUT_CLASSIFICATION_FILE, dataset, filtering, building)
 
     else:
         if building:

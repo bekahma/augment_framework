@@ -1,11 +1,21 @@
-# update this
+# last updated: 09/20
 
-huggingface-hub==0.20.2
-numpy==1.26.1
-pandas==2.1.1
-protobuf==4.25.2
-sentencepiece==0.1.99
-tokenizers==0.14.1
-torch==1.13.1+cu116
-tqdm==4.66.1
-transformers==4.34.0
+datasets==4.0.0+computecanada
+httpcore==0.17.3
+httpx==0.24.1
+huggingface_hub==0.34.4+computecanada
+matplotlib==3.10.0+computecanada
+numpy==2.2.2+computecanada
+openai==1.35.14
+packaging==24.2+computecanada
+pandas==2.2.3+computecanada
+python_dotenv==1.1.1+computecanada
+safetensors==0.5.3+computecanada
+scipy==1.15.1+computecanada
+sentencepiece==0.2.0+computecanada
+sympy==1.13.3+computecanada
+tokenizers==0.22.0
+torch==2.7.1+computecanada
+tqdm==4.67.1+computecanada
+transformers==4.56.1
+yarl==1.20.1+computecanada
