@@ -8,3 +8,4 @@ run_inference.py
 data/*/jsonl/
 data/*/paraphrases/
 result/
+annotations/
