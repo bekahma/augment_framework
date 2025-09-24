@@ -444,7 +444,7 @@ def evaluate_paraphrase(original_text, paraphrase, modification):
         return nb_modifs, flags
 
     if modification == "prepositions" or modification=='random':
-        if perplexity_ratio < 1.85 and sbert_score > 0.8:
+        if perplexity_ratio < 2.5 and sbert_score > 0.75:
             wrong_added, wrong_removed = metrics_dict['wrong_added'], metrics_dict['wrong_removed']
             if not wrong_added and not wrong_removed:
                 flags["prepositions"] = True
@@ -457,25 +457,25 @@ def evaluate_paraphrase(original_text, paraphrase, modification):
                     flags["prepositions"] = True
     
     if modification == "AAE" or modification=='random':
-        if sbert_score > 0.75:
+        if perplexity_ratio < 2.5 and sbert_score > 0.75:
             pred_label = metrics_dict["aae_label_par"]
             proba_par, proba_ori = metrics_dict["aae_proba_par"], metrics_dict["aae_proba_ori"]
             if pred_label == "LABEL_1" or (proba_par < proba_ori and proba_par <= 0.9):
                 flags["AAE"] = True
     
     if modification == "formal" or modification=='random':
-        if perplexity_ratio < 2 and sbert_score > 0.75:
+        if perplexity_ratio < 2.5 and sbert_score > 0.75:
             pred_label, pred_ori = metrics_dict["formal_label_par"], metrics_dict["formal_label_ori"]
             proba_par, proba_ori = metrics_dict["formal_proba_par"], metrics_dict["formal_proba_ori"]
             if pred_label == "formal" or (pred_label == "neutral" and pred_ori =="neutral" and proba_par < proba_ori):
                 flags["formal"] = True
     
     if modification == "synonym_substitution" or modification=='random':
-        if perplexity_ratio < 2.5 and sbert_score > 0.85 and metrics_dict["jac_pos_sim"]>0.8: #and metrics_dict["seq_ratio"] > 0.80:
+        if perplexity_ratio < 2.5 and sbert_score > 0.75 and metrics_dict["seq_ratio"] > 0.70:
             flags["synonym_substitution"] = True
     
     if modification == "change_voice" or modification=='random':
-        if perplexity_ratio < 1.8 and bert_score > 0.93 and sbert_score > 0.90 and metrics_dict["voice_changed"]:
+        if perplexity_ratio < 2.5 and sbert_score > 0.75 and metrics_dict["voice_changed"]:
             flags["change_voice"] = True
     
     return nb_modifs, flags
