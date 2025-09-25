@@ -7,4 +7,5 @@ run_inference.py
 .ipynb_checkpoints/
 data/*/jsonl/
 data/*/paraphrases/
+data/*/annotations/
 result/
