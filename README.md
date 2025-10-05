@@ -1,39 +1,93 @@
 # Say It Another Way: Auditing LLMs with a User-Grounded Automated Paraphrasing Framework
 This repository contains code for evaluating social bias in large language models (LLMs) through prompt paraphrasing.
-The dataset is [BBQ dataset](https://github.com/nyu-mll/BBQ).
+The datasets used are [BBQ](https://github.com/nyu-mll/BBQ) and [MMLU](https://huggingface.co/datasets/cais/mmlu).
+
+## Setup and Environment
+
+To run the code, it is recommended to create a dedicated Python virtual environment:
+
+```bash
+# Create virtual environment using venv
+python3 -m venv venv
+
+# Activate the environment
+# Linux/macOS
+source venv/bin/activate
+# Windows
+venv\Scripts\activate
+
+pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+## Structure
+
+The repository is organized as follows:
+```
+├── src/
+│   ├── compute_metrics.py
+│   ├── configuration.py
+│   ├── generate_prompts.py
+│   ├── llm_inference.py
+│   ├── llms.py
+│   ├── paraphrase_detection.py
+│   ├── paraphrasing.py
+│   └── utils.py
+├── data/
+│   ├── BBQ/
+│   └── MMLU/
+├── notebooks/
+│   ├── annotation_analysis.ipynb
+│   ├── classification_analysis.ipynb
+│   ├── downstream_metrics.ipynb
+│   └── iaa_scores.ipynb
+├── results/
+│   ├── BBQ/
+│   └── MMLU/
+├── requirements.txt
+├── .gitignore
+└── README.md
+```
+
 
 ## Paraphrase
 
 ### Paraphrasing
-The `paraphrasing.py` file outputs a .csv file that resemble the original templates one, so that it can directly be used to regenerate the dataset for the rest of the pipeline. You should run it like this, by specifying the model 
+The `src/paraphrasing.py` file outputs a .csv file that resemble the original one, with added columns for paraphrases. You should run it like this, by specifying the dataset, generator model, modification and category of the dataset:
 
-```python3 src/paraphrasing.py --model chatgpt --modification prepositions```
+```python3 src/paraphrasing.py --dataset BBQ --model chatgpt --modification prepositions --category Age```
+
+More information on the configurations supported can be found in the `src/configuration.py`. 
 
 ### Automatic detection and filtering
 
-You can build the excel for annotation with automated metrics with the following command. Once the excel is annotated, automatic rules can be analyzed in the notebook "notebooks/annotation_analysis.ipynb".
+Once the paraphrases are generated, you can build excel files for human annotation with the following command.
 
-```python3 src/paraphrase_detection.py --model chatgpt --modification prepositions --building```
+```python3 src/paraphrase_detection.py --dataset BBQ --model chatgpt --modification prepositions --category Gender_identity --building```
+
+Once the excel is annotated, inter-annotator agreements and ground truth can be computed in "notebooks/iaa_scores.ipynb" and automatic rules can be compared to human ground truth in "notebooks/annotation_analysis.ipynb".
 
 To apply automatic detection and filter paraphrases, run:
 
-```python3 src/paraphrase_detection.py --model chatgpt --modification prepositions --filtering```
+```python3 src/paraphrase_detection.py --dataset BBQ --model chatgpt --modification prepositions --category Gender_identity --filtering```
+
+If you are running the paraphrasing process for the random baseline, i.e. the modification "random", the command --building will perform the automatic classification of paraphrases, whereas the command --filtering will flatten the lists of 5 paraphrases per example.
 
 ### Formatting
 
-Once the .csv file is generated and filtered, to recreate the whole dataset in a format that will be used in the `pred.py` script, run the following command. This will save a .jsonl file in the ‘data/jsonl’ folder.
+Once the .csv file is filtered or flattened, to create the prompts that will be used for LLM inference, run the following command. This will save a .jsonl file in the ‘data/{dataset}/jsonl’ folder.
 
-```python3 src/generate_BBQ.py --model chatgpt --modification prepositions```
+```python3 src/generate_prompts.py --dataset $DATASET --modification $MODIF --model $MODEL --category $CAT```
 
 ## Inference 
-You can run the inference with each LLM.
-```export PYTHONPATH="$pwd/src:$PYTHONPATH"; python3 src/pred.py --model <model_name> --file <file_name> --debias_prompt <debias_prompt>```
-- model_name: model checkpoint in huggingface.
-- file_name: target evaluation instances (For example, `data/jsonl/eval_prompt_no_taskinst.jsonl`)
-- debias_prompt: debias_prompt key. See the above description. When evaluating without debias-prompts, drop this arg. 
+You can run the inference with each LLM with the following command, with a jsonl file generated previously:
+```python3 src/llm_inference.py --dataset $DATASET --model $MODEL_NAME --file $file ```
 
 ## Evaluation
-The results can be analyzed in the notebook "notebooks/bbq_metrics.ipynb".
+The downstream metrics can be computed with the following command:
+```python3 src/compute_metrics.py --dataset $DATASET```
+
+The results can then be analyzed in the notebook "notebooks/downstream_metrics.ipynb".
 
 
 

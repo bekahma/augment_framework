@@ -10,3 +10,4 @@ data/*/paraphrases/
 result/
 annotations/
 data/*/annotations/
+notebooks/tex_files

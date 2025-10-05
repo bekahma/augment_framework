@@ -649,7 +649,10 @@ def classify_data(paraphrase_df, output_data_path, output_classification_path, d
                 expanded_rows.append(new_row)
     
     if classify:
-        classification_df = pd.DataFrame(classification_rows)
+        try:
+            classification_df = pd.DataFrame(classification_rows)
+        except:
+            print(classification_rows)
         classification_df.to_csv(output_classification_path, index=False)
     if export:
         # save expanded paraphrase dataset
