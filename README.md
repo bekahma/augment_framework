@@ -19,6 +19,7 @@ venv\Scripts\activate
 pip install --upgrade pip
 pip install -r requirements.txt
 ```
+All data and results are provided as `.zip` files (`data.zip`, `annotations.zip`, `results.zip`) which should be unzipped if you want to reproduce our experiments.
 
 ## Structure
 
@@ -36,12 +37,13 @@ The repository is organized as follows:
 ├── data/
 │   ├── BBQ/
 │   └── MMLU/
+├── annotations/
 ├── notebooks/
 │   ├── annotation_analysis.ipynb
 │   ├── classification_analysis.ipynb
 │   ├── downstream_metrics.ipynb
 │   └── iaa_scores.ipynb
-├── results/
+├── result/
 │   ├── BBQ/
 │   └── MMLU/
 ├── requirements.txt
