@@ -1,0 +1,120 @@
+============================================================
+Agreement Matrix for AAE - chatgpt
+Total rows: 133
+
+                    Human-A1      Human-A2      Human-A3 Human-Majority   LLM-chatgpt LLM-llama
+Human-A1                   -                                                                   
+Human-A2        79.7%\n(133)             -                                                     
+Human-A3        31.6%\n(133)  17.3%\n(133)             -                                       
+Human-Majority  97.0%\n(133)  82.7%\n(133)  34.6%\n(133)              -                        
+LLM-chatgpt     45.9%\n(133)  58.6%\n(133)  51.1%\n(133)   47.4%\n(133)             -          
+LLM-llama       30.1%\n(133)  38.3%\n(133)  66.9%\n(133)   33.1%\n(133)  66.2%\n(133)         -
+
+============================================================
+Agreement Matrix for AAE - deepseek
+Total rows: 538
+
+                    Human-A1      Human-A2      Human-A3 Human-Majority   LLM-chatgpt LLM-llama
+Human-A1                   -                                                                   
+Human-A2        87.0%\n(538)             -                                                     
+Human-A3        18.4%\n(538)  18.8%\n(538)             -                                       
+Human-Majority  93.3%\n(538)  93.7%\n(538)  25.1%\n(538)              -                        
+LLM-chatgpt     55.6%\n(538)  60.0%\n(538)  48.0%\n(538)   57.8%\n(538)             -          
+LLM-llama       41.3%\n(538)  40.5%\n(538)  51.9%\n(538)   40.1%\n(538)  57.8%\n(538)         -
+
+============================================================
+Agreement Matrix for change_voice - chatgpt
+Total rows: 355
+
+                    Human-A1      Human-A2      Human-A3 Human-Majority   LLM-chatgpt LLM-llama
+Human-A1                   -                                                                   
+Human-A2        76.6%\n(355)             -                                                     
+Human-A3        72.4%\n(355)  65.9%\n(355)             -                                       
+Human-Majority  91.5%\n(355)  85.1%\n(355)  80.8%\n(355)              -                        
+LLM-chatgpt     64.5%\n(355)  71.5%\n(355)  61.1%\n(355)   68.5%\n(355)             -          
+LLM-llama       43.9%\n(355)  48.7%\n(355)  40.6%\n(355)   45.1%\n(355)  59.2%\n(355)         -
+
+============================================================
+Agreement Matrix for change_voice - deepseek
+Total rows: 597
+
+                    Human-A1      Human-A2      Human-A3 Human-Majority   LLM-chatgpt LLM-llama
+Human-A1                   -                                                                   
+Human-A2        66.3%\n(597)             -                                                     
+Human-A3        61.3%\n(597)  51.1%\n(597)             -                                       
+Human-Majority  88.3%\n(597)  78.1%\n(597)  73.0%\n(597)              -                        
+LLM-chatgpt     59.6%\n(597)  67.8%\n(597)  54.4%\n(597)   64.0%\n(597)             -          
+LLM-llama       44.2%\n(597)  50.8%\n(597)  43.0%\n(597)   46.9%\n(597)  58.1%\n(597)         -
+
+============================================================
+Agreement Matrix for formal - chatgpt
+Total rows: 544
+
+                    Human-A1      Human-A2      Human-A3 Human-Majority   LLM-chatgpt LLM-llama
+Human-A1                   -                                                                   
+Human-A2        97.1%\n(544)             -                                                     
+Human-A3        47.1%\n(544)  47.8%\n(544)             -                                       
+Human-Majority  98.2%\n(544)  98.9%\n(544)  48.9%\n(544)              -                        
+LLM-chatgpt     87.9%\n(544)  86.8%\n(544)  50.7%\n(544)   86.8%\n(544)             -          
+LLM-llama       93.8%\n(544)  90.8%\n(544)  49.6%\n(544)   91.9%\n(544)  90.4%\n(544)         -
+
+============================================================
+Agreement Matrix for formal - deepseek
+Total rows: 561
+
+                    Human-A1      Human-A2      Human-A3 Human-Majority   LLM-chatgpt LLM-llama
+Human-A1                   -                                                                   
+Human-A2        95.4%\n(561)             -                                                     
+Human-A3        10.0%\n(561)  11.1%\n(561)             -                                       
+Human-Majority  97.1%\n(561)  98.2%\n(561)  12.8%\n(561)              -                        
+LLM-chatgpt     85.7%\n(561)  85.0%\n(561)  11.1%\n(561)   85.0%\n(561)             -          
+LLM-llama       90.4%\n(561)  88.2%\n(561)   1.8%\n(561)   87.9%\n(561)  90.0%\n(561)         -
+
+============================================================
+Agreement Matrix for prepositions - chatgpt
+Total rows: 147
+
+                    Human-A1      Human-A2      Human-A3 Human-Majority   LLM-chatgpt LLM-llama
+Human-A1                   -                                                                   
+Human-A2        93.9%\n(147)             -                                                     
+Human-A3        35.4%\n(147)  37.4%\n(147)             -                                       
+Human-Majority  95.9%\n(147)  98.0%\n(147)  39.5%\n(147)              -                        
+LLM-chatgpt     14.3%\n(147)  16.3%\n(147)  70.7%\n(147)   18.4%\n(147)             -          
+LLM-llama       49.7%\n(147)  49.0%\n(147)  55.8%\n(147)   51.0%\n(147)  61.9%\n(147)         -
+
+============================================================
+Agreement Matrix for prepositions - deepseek
+Total rows: 377
+
+                    Human-A1      Human-A2      Human-A3 Human-Majority   LLM-chatgpt LLM-llama
+Human-A1                   -                                                                   
+Human-A2        96.6%\n(377)             -                                                     
+Human-A3        39.3%\n(377)  37.4%\n(377)             -                                       
+Human-Majority  99.2%\n(377)  97.3%\n(377)  40.1%\n(377)              -                        
+LLM-chatgpt     35.0%\n(377)  33.7%\n(377)  69.8%\n(377)   35.8%\n(377)             -          
+LLM-llama       47.2%\n(377)  46.9%\n(377)  50.1%\n(377)   47.5%\n(377)  53.3%\n(377)         -
+
+============================================================
+Agreement Matrix for synonym_substitution - chatgpt
+Total rows: 600
+
+                    Human-A1      Human-A2      Human-A3 Human-Majority   LLM-chatgpt LLM-llama
+Human-A1                   -                                                                   
+Human-A2        78.3%\n(600)             -                                                     
+Human-A3        23.7%\n(600)   9.3%\n(600)             -                                       
+Human-Majority  96.3%\n(600)  82.0%\n(600)  27.3%\n(600)              -                        
+LLM-chatgpt     62.5%\n(600)  67.8%\n(600)  33.5%\n(600)   64.2%\n(600)             -          
+LLM-llama       72.8%\n(600)  87.5%\n(600)  12.8%\n(600)   75.2%\n(600)  72.7%\n(600)         -
+
+============================================================
+Agreement Matrix for synonym_substitution - deepseek
+Total rows: 600
+
+                    Human-A1      Human-A2      Human-A3 Human-Majority   LLM-chatgpt LLM-llama
+Human-A1                   -                                                                   
+Human-A2        68.7%\n(600)             -                                                     
+Human-A3        32.7%\n(600)  17.7%\n(600)             -                                       
+Human-Majority  91.8%\n(600)  76.8%\n(600)  40.8%\n(600)              -                        
+LLM-chatgpt     55.3%\n(600)  61.0%\n(600)  44.0%\n(600)   57.2%\n(600)             -          
+LLM-llama       68.2%\n(600)  78.8%\n(600)  19.8%\n(600)   66.7%\n(600)  68.5%\n(600)         -
+

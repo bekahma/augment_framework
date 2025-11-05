@@ -9,3 +9,4 @@ data/*/jsonl/
 data/*/paraphrases/
 result/
 annotations/
+archive/

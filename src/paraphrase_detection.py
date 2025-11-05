@@ -316,11 +316,11 @@ def automatic_detection(original_context, paraphrase, modification, other_metric
     
     if modification=='synonym_substitution' or modification=='random':
         #cos_score=compute_cos_similarity(added_words, removed_words)
-        #matcher = difflib.SequenceMatcher(None, pos_original, pos_paraphrase)
-        #seq_ratio = matcher.ratio()
+        matcher = difflib.SequenceMatcher(None, pos_original, pos_paraphrase)
+        seq_ratio = matcher.ratio()
         
         metrics.update({
-            #"seq_ratio": seq_ratio,
+            "seq_ratio": seq_ratio,
             "jac_pos_sim":jaccard_similarity(pos_original, pos_paraphrase)
         })
     
