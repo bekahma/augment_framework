@@ -1,3 +1,8 @@
+"""
+Script for computing agreement scores between humans and annotators.
+Currently outputs to a .txt file in grid format.
+"""
+
 import os
 import pandas as pd
 import numpy as np
@@ -64,14 +69,12 @@ def parse_llm_filename(fname):
     base = fname.replace("llm_", "").replace(".xlsx", "")
     parts = base.split("_")
     
-    # Find "judged" keyword to split
     if "judged" in parts:
         judged_idx = parts.index("judged")
         modification_parts = parts[:judged_idx-1]
         generator = parts[judged_idx-1]
         judge = "_".join(parts[judged_idx+1:])
-    else:
-        # Fallback: assume last part is judge, second-to-last is generator
+    else: # fallback
         modification_parts = parts[:-2]
         generator = parts[-2]
         judge = parts[-1]
@@ -128,7 +131,7 @@ def create_agreement_table(agreement_rates, vote_counts, judges):
                 count = vote_counts[i, j]
                 row.append(f"{rate:.1%}\n({count})")
             else:
-                # Upper triangle: empty (or could mirror)
+                # Upper triangle: empty
                 row.append("")
         data.append(row)
     
