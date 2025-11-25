@@ -18,7 +18,8 @@ MODEL_CONFIGS = {
     ),
     "chatgpt": ModelConfig(
         name="chatgpt",
-        model_id="gpt-4o-mini",
+        #model_id="gpt-4o-mini",
+        model_id="gpt-4.1",
         provider="openai"
     ),
     "claude": ModelConfig(

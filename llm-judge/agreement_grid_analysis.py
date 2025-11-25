@@ -225,7 +225,7 @@ def main():
     # Process each modification-model combination
     results = []
     #output_file = os.path.join(COMBINED_DIR, "agreement_matrices_all.txt")
-    output_file = "llm-judge/agreement_matrices_all.txt"
+    output_file = "llm-judge/1104_agreement_matrices_all.txt"
     
     with open(output_file, 'w') as f:
         for (modification, model), llm_files_dict in llm_grouped.items():

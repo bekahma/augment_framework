@@ -40,7 +40,7 @@ def run_simple_mode(args, judger: ParaphraseJudger, instructions_df: pd.DataFram
     df = pd.read_excel(filepath)
     judged_df = judger.judge_simple(df, instruction_text)
     
-    output_filename = f"llm_{args.modif}_{args.generator_model}_judged_{args.model}.xlsx"
+    output_filename = f"llm_{args.modif}_{args.generator_model}_judged_{args.alias}.xlsx"
     output_path = os.path.join(args.llm_folder, output_filename)
     judged_df.to_excel(output_path, index=False)
     print(f"Finished: saved to {output_path}\n")
@@ -67,7 +67,7 @@ def run_reasoning_mode(args, judger: ParaphraseJudger, instructions_df: pd.DataF
     print(f"Judging {args.input} with reasoning using {args.model}...")
     judged_df = judger.judge_with_reasoning(df, instruction_map)
     
-    output_path = args.input.replace(".xlsx", f"_judged_{args.model}.xlsx")
+    output_path = args.input.replace(".xlsx", f"_judged_{args.alias}.xlsx")
     judged_df.to_excel(output_path, index=False)
     print(f"Finished: saved to {output_path}\n")
 
@@ -90,18 +90,45 @@ def main():
         choices=["chatgpt", "deepseek", "llama", "claude"],
         help="Model to use for judging (NOT GENERATOR LLM)"
     )
+    # this is different from model! (e.g. llama8b, llama70b)
+    parser.add_argument(
+        "--alias",
+        type=str,
+        required=True,
+        help="Suffix at the end of the new named result file (for multiple models)"
+    )
     parser.add_argument(
         "--llama_model",
         type=str,
         default="Meta-Llama-3-8B-Instruct",
         help="Specific Llama model to use (only applicable if --model is 'llama')"
     )
+    
     # only change this for another cluster, don't include
+    '''
     parser.add_argument(
         "--model_weights_dir",
         type=str,
         default="/model-weights",
         help="Directory containing local model weights (for Llama models)"
+    )
+    '''
+    parser.add_argument(
+        "--use_vector_inference",
+        action="store_true",
+        help="Use Vector Institute's vec-inf system for Llama models"
+    )
+
+    # these are optional
+    parser.add_argument(
+        "--vector_account",
+        type=str,
+        help="Slurm account for vec-inf (or set VEC_INF_ACCOUNT env var)"
+    )
+    parser.add_argument(
+        "--vector_work_dir",
+        type=str,
+        help="Working directory for vec-inf (or set VEC_INF_WORK_DIR env var)"
     )
     
     # Simple mode arguments
@@ -144,7 +171,6 @@ def main():
     llm_judge = LLMJudge(
         args.model, 
         llama_model_id=args.llama_model,
-        model_weights_dir=args.model_weights_dir
     )
     judger = ParaphraseJudger(llm_judge)
     

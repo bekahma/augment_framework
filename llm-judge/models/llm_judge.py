@@ -18,6 +18,7 @@ class LLMJudge:
         self, 
         model_name: str, 
         llama_model_id: Optional[str] = None,
+        use_vector_inference: bool = False, # default to false, not working right now
     ):
         """
         Initialize LLM judge.
@@ -25,10 +26,14 @@ class LLMJudge:
         Args:
             model_name: Name of the model (chatgpt, deepseek, claude, llama)
             llama_model_id: Specific Llama model ID
-            model_weights_dir: Directory containing local model weights
+            use_vector_inference: Use Vector Institute's vec-inf system
+            vector_account: Slurm account for vec-inf
+            vector_work_dir: Working directory for vec-inf
         """
         self.model_name = model_name
-        self.llama_model_id = llama_model_id or "Meta-Llama-3-8B-Instruct"
+        self.llama_model_id = llama_model_id or "Meta-Llama-3.1-8B-Instruct"
+        self.use_vector_inference = use_vector_inference
+        self.vector_client = None
         
         if model_name == "llama":
             self.config = ModelConfig(
@@ -36,6 +41,13 @@ class LLMJudge:
                 model_id=self.llama_model_id,
                 provider="llama"
             )
+
+            if use_vector_inference:
+                from .vector_llama import VectorLlamaClient
+                self.vector_client = VectorLlamaClient(
+                    model_name=self.llama_model_id,
+                    wait_for_ready=True,
+                )
         elif model_name in MODEL_CONFIGS:
             self.config = MODEL_CONFIGS[model_name]
         else:
@@ -68,11 +80,23 @@ class LLMJudge:
             Model response as string
         """
         if self.config.provider == "llama":
-            return self._get_llama_response(prompt, system_msg)
+            if self.use_vector_inference:
+                return self._get_vector_response(prompt, system_msg)
+            else:
+                return self._get_llama_response(prompt, system_msg)
         elif self.config.provider == "anthropic":
             return self._get_claude_response(prompt, system_msg)
         else:
             return self._get_openai_response(prompt, system_msg)
+    
+    def _get_vector_response(self, prompt: str, system_msg: str) -> str:
+        """Get response from Vector Institute inference server."""
+        messages = []
+        if system_msg:
+            messages.append({"role": "system", "content": system_msg})
+        messages.append({"role": "user", "content": prompt})
+        
+        return self.vector_client.chat_completion(messages, temperature=0.0, max_tokens=512)
     
     def _get_llama_response(self, prompt: str, system_msg: str) -> str:
         model, tokenizer = _llama_cache.load(self.llama_model_id) # default directory is /model-weights
